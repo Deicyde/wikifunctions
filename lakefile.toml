@@ -1,0 +1,10 @@
+name = "Wikifunctions"
+defaultTargets = ["Wikifunctions"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+version = "git#master"
+
+[[lean_lib]]
+name = "Wikifunctions"
