@@ -2,6 +2,7 @@
 
 **Repo:** Deicyde/wikifunctions (Lean 4 + Mathlib)
 **Audited components:** `Wikifunctions/Core.lean`, `WikifunctionsEval.lean`, `Wikifunctions/Python/Imp.lean` (+ `Z13701.lean`, `Z13667.lean`, `*Prog.lean`, `native/`), `WikifunctionsSpecs.lean`
+**Companion:** [BLUEPRINT.md](BLUEPRINT.md) — the per-declaration citation map: every Lean declaration side-by-side with the exact WikiLambda artifact it models (deep-linked spec sections, schemata files, live API fetches), each with a one-command reproduction check.
 **Method:** every claim below was checked against (a) the canonical prose spec, (b) the machine-readable schemata, (c) the deployed orchestrator/evaluator source, and (d) the live wikifunctions.org API (`wikilambda_fetch` / `wikifunctions_run`, fetched 2026-07-02). Findings survived two adversarial verification passes; divergences in §3 are established, not suspicions.
 
 ---
