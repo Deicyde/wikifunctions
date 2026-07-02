@@ -40,6 +40,10 @@ jobs:
         run: python3 blueprint/check_decls.py
       - name: Build web blueprint
         run: cd blueprint/src && plastex -c plastex.cfg web.tex
+      - name: Generate the declaration resolver (find/)
+        # \lean{Decl} links point at {dochome}/find/#doc/Decl; this writes the
+        # static resolver that redirects each declaration to its GitHub source.
+        run: python3 blueprint/make_find.py blueprint/web
       - uses: actions/upload-pages-artifact@v3
         with:
           path: blueprint/web

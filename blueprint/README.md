@@ -62,6 +62,21 @@ python3 -m http.server 8137 --directory blueprint/web
 python3 blueprint/check_decls.py     # exits non-zero if any \lean{} name is unknown
 ```
 
+## Declaration links (`\lean{}` → GitHub source)
+
+leanblueprint renders every `\lean{Decl}` as a link `{dochome}/find/#doc/Decl`.
+This project does **not** host doc-gen4 API docs, so `\dochome` (in `src/web.tex`)
+points at our own static resolver instead:
+
+```bash
+python3 blueprint/make_find.py blueprint/web   # writes blueprint/web/find/index.html
+```
+
+`make_find.py` reads the `\lean{}`/`\leansrc{}` pairs out of `content.tex` and
+emits a `find/` page that redirects each declaration to its exact Lean source
+line on GitHub — so both the prose blueprint and the dependency-graph nodes link
+straight to the code. The CI workflow runs this right after the plasTeX build.
+
 The web build is also deployed to GitHub Pages by
 `.github/workflows/blueprint.yml` on every push to `main` (enable Pages →
 "GitHub Actions" in repo settings).
