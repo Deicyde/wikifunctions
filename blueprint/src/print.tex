@@ -1,0 +1,22 @@
+% Printable (PDF) version of the blueprint (compiled by xelatex via latexmk).
+\documentclass[a4paper]{report}
+
+\usepackage{geometry}
+\usepackage{expl3}
+\usepackage{amssymb, amsthm, mathtools}
+\usepackage[unicode,colorlinks=true,linkcolor=blue,urlcolor=magenta,citecolor=blue]{hyperref}
+\usepackage[warnings-off={mathtools-colon,mathtools-overbracket}]{unicode-math}
+
+\usepackage{blueprint}
+
+\input{macros/common}
+\input{macros/print}
+
+\title{Wikifunctions $\times$ Lean --- Formalization Blueprint}
+\author{Jack McCarthy}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\input{content}
+\end{document}

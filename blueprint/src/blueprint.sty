@@ -1,0 +1,26 @@
+% Local, print-only implementation of the blueprint macros.
+% The web build does NOT use this file: plasTeX intercepts \usepackage{blueprint}
+% with the leanblueprint plugin. This file exists only so the xelatex PDF build
+% compiles a clean, readable document (without the in-PDF dependency graph, which
+% lives in the interactive web version).
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{blueprint}[2026/07/02 local print-only blueprint macros]
+\DeclareOption*{}
+\ProcessOptions\relax
+\RequirePackage{hyperref}
+
+% Project URLs (no-ops in print).
+\newcommand{\home}[1]{}
+\newcommand{\github}[1]{}
+\newcommand{\dochome}[1]{}
+\newcommand{\graphcolor}[3]{}
+
+% Status / dependency annotations. In print we surface the Lean declaration name
+% (informative) and swallow the graph-only annotations.
+\newcommand{\lean}[1]{\par\nobreak\vspace{-2pt}{\footnotesize\textsf{Lean:} \texttt{\detokenize{#1}}}\par}
+\newcommand{\leanok}{}
+\newcommand{\notready}{}
+\newcommand{\mathlibok}{}
+\newcommand{\discussion}[1]{}
+\newcommand{\uses}[1]{}
+\newcommand{\proves}[1]{}

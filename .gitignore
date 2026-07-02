@@ -1,1 +1,7 @@
 .lake/
+.blueprint-venv/
+blueprint/web/
+blueprint/print/
+.claude/
+blueprint/lean_decls
+blueprint/src/*.paux
