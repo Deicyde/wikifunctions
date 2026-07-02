@@ -134,7 +134,9 @@ factorial `Z13667`); 6 real composite (`Z14K2`) bodies verified against their Ma
 oracles in `WikifunctionsEval.lean`.
 
 **Next:** (a) Python↔`Imp` round-trip (ast → `Imp` translator + `Imp` → Python printer) to
-eliminate hand-transcription; (b) fuel + fold for the composite evaluator (unlocks the
+eliminate hand-transcription — **prototyped in [`roundtrip/`](roundtrip/)**: the Lean kernel
+certifies the committed transcriptions of `Z13701`/`Z13667` equal the mechanical translation;
+(b) fuel + fold for the composite evaluator (unlocks the
 recursive composites: gcd, factorial, fib, totient, powerset); (c) an `Expr → Z14K2` JSON
 serializer to contribute correct-by-construction composite implementations upstream;
 (d) generated differential harnesses (in-process CPython + live evaluator API) for the
