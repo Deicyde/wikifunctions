@@ -25,8 +25,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.14'   # match the locally-verified build; plasTeX/plastexdepgraph
-                                    # hit an unhashable-node error under 3.12
+          python-version: '3.14'
+      - name: Install a LaTeX distribution
+        # plasTeX resolves the document class and packages via kpsewhich; without a
+        # TeX install it silently fails to process \newtheorem and \newcommand, and
+        # plastexdepgraph then crashes on unrecognized (unhashable) theorem nodes.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
       - name: Install blueprint tooling (pinned to the known-good set)
         run: pip install -r blueprint/requirements.txt
       - name: Verify blueprint declaration names
