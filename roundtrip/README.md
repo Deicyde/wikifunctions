@@ -83,6 +83,27 @@ python3 roundtrip/test_roundtrip.py                                  # P1+P2+P3 
 `test_roundtrip.py` needs a built Lean project (`lake exe cache get && lake build`)
 for the P3 step; P1/P2 are pure Python.
 
+## Against production (live API)
+
+The vendored `programs/*.py` are the default (offline, deterministic CI). To run
+against the **deployed** source instead, `fetch.py` pulls the first Python code
+implementation (`Z14K3` → `Z16K2`) from a function's `Z8K4`, mirroring the
+orchestrator's first-listed selection:
+
+```bash
+python3 roundtrip/fetch.py Z13701          # print the deployed source (impl Z29182)
+python3 roundtrip/fetch.py --check         # AST-diff deployed vs vendored programs/*.py
+python3 roundtrip/fetch.py --update        # refresh the vendored copies from live
+python3 roundtrip/test_roundtrip.py --live # P1/P2/P3 against the deployed source
+```
+
+`--live` fetches the deployed code and re-runs every property — so the kernel
+certificate (P3) then certifies the committed transcription against **production**,
+not a vendored copy (the deployed source is tab-indented; the AST-level checks
+absorb that). The scheduled [`live-check.yml`](../.github/workflows/live-check.yml)
+workflow runs `--check` plus a live round-trip weekly; a red run means the deployed
+implementation drifted from what we transcribed and verified.
+
 ## Scope and honest limits
 
 - **A prototype for the deployed fragment**, not a Python front end. It handles
