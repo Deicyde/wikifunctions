@@ -1,0 +1,23 @@
+% Macros shared by the PDF and web builds.
+
+% Theorem-like environments that become dependency-graph nodes.
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% --- Wikifunctions cross-reference macros (work in both pdf and web) ---
+% \wf{Zxxxx} : link to a live Wikifunctions object.
+\newcommand{\wf}[1]{\href{https://www.wikifunctions.org/wiki/#1}{\textsf{#1}}}
+% \wfl{Zxxxx}{label} : link plus a human label.
+\newcommand{\wfl}[2]{\href{https://www.wikifunctions.org/wiki/#1}{\textsf{#1}}~(#2)}
+% \leansrc{path}{line} : link to the exact Lean source line on GitHub.
+\newcommand{\leansrc}[2]{\href{https://github.com/Deicyde/wikifunctions/blob/main/#1\#L#2}{\texttt{#1:#2}}}
+% \divergence{Dn} : reference an audit finding in SPEC_AUDIT.md.
+\newcommand{\divergence}[1]{\href{https://github.com/Deicyde/wikifunctions/blob/main/SPEC_AUDIT.md}{\textbf{#1}}}

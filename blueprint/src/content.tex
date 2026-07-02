@@ -1,0 +1,315 @@
+% Content of the Wikifunctions x Lean blueprint.
+% Each node names the Lean declaration it formalizes (\lean, and a \leansrc link
+% to the exact source line) and the live WikiLambda object it models (\wf link).
+% Green nodes in the dependency graph are formalized and proved in Lean; edges are
+% \uses dependencies. Divergences from the live system are flagged with \divergence
+% and analysed in SPEC\_AUDIT.md.
+
+\chapter*{How to read this blueprint}
+
+This blueprint maps the Lean~4 formalization in the \href{https://github.com/Deicyde/wikifunctions}{\texttt{Deicyde/wikifunctions}} repository onto the deployed WikiLambda / Wikifunctions system it models. Every node carries two kinds of link:
+
+\begin{itemize}
+  \item a \textbf{Lean} link (\leansrc{Wikifunctions/Core.lean}{43}-style) to the exact source line, and the declaration name shown by the \textsf{L$\exists\forall$N} badge;
+  \item a \textbf{WikiLambda} link (e.g.\ \wf{Z13701}) to the live object on \href{https://www.wikifunctions.org}{wikifunctions.org} that the Lean models.
+\end{itemize}
+
+In the dependency graph, a node is filled green when its Lean statement \emph{and} proof are complete; edges are \texttt{\textbackslash uses} dependencies. Everything here is proved with no \texttt{sorry}; the two headline theorems depend only on \texttt{[propext, Classical.choice, Quot.sound]}.
+
+The system is specified by a four-layer stack, cited throughout: the prose \href{https://www.wikifunctions.org/wiki/Wikifunctions:Function_model}{Function model}, the machine-enforced \href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata}{function-schemata}, the live objects (via the \texttt{wikilambda\_fetch} API), and the deployed orchestrator/evaluator. The companion \href{https://github.com/Deicyde/wikifunctions/blob/main/BLUEPRINT.md}{BLUEPRINT.md} pins each mapping to a runnable check; \href{https://github.com/Deicyde/wikifunctions/blob/main/SPEC_AUDIT.md}{SPEC\_AUDIT.md} records the confirmed divergences (D1--D18).
+
+\chapter{The object model and evaluator core}
+
+\texttt{Core.lean} is an open, registry-parameterized model of the Wikifunctions composition language: the \wf{Z7} function-call / \wf{Z18} argument-reference fragment, evaluated against a wiki of \wf{Z8} functions.
+
+\begin{definition}[ZID]\label{def:core-zid}
+  \lean{Wikifunctions.ZID}\leanok
+  A Wikifunctions object id is a string. Models \wf{Z9} references (schema \texttt{Z9.yaml}: \texttt{pattern \^{}Z[1-9]$\backslash$d*\$}).
+  Source: \leansrc{Wikifunctions/Core.lean}{16}.
+\end{definition}
+
+\begin{definition}[Value universe]\label{def:core-val}
+  \lean{Wikifunctions.Val}\leanok
+  The subset of \wf{Z4} types the evaluator needs: naturals (\wf{Z13518}), booleans (\wf{Z40}), and rationals (\wf{Z19677}).
+  Source: \leansrc{Wikifunctions/Core.lean}{20}.
+\end{definition}
+
+\begin{definition}[Composition AST]\label{def:core-expr}
+  \uses{def:core-val}
+  \lean{Wikifunctions.Expr}\leanok
+  Three node shapes: \texttt{arg} (a \wf{Z18} argument reference), \texttt{lit} (an inline literal value), and \texttt{call} (a \wf{Z7} function call naming its callee by \wf{Z9} reference). This is the shape of a \wf{Z14}K2 composite body on the modelled fragment (\divergence{D16}: real \wf{Z18} references are by key-id string, modelled here positionally; \divergence{D17}: general \wf{Z14}K2 bodies admit more forms).
+  Source: \leansrc{Wikifunctions/Core.lean}{28}.
+\end{definition}
+
+\begin{definition}[Denotation]\label{def:core-denotation}
+  \uses{def:core-val}
+  \lean{Wikifunctions.Denotation}\leanok
+  A function's extensional meaning: \texttt{List Val $\to$ Option Val}, total, with \texttt{none} for a type error or arity mismatch. Models \wf{Z8} extensionally (\wf{Z8}K1 arguments $\to$ \wf{Z8}K2 return), collapsing the \wf{Z22}/\wf{Z5} error envelope to \texttt{Option} (\divergence{D-info}: documented abstraction).
+  Source: \leansrc{Wikifunctions/Core.lean}{34}.
+\end{definition}
+
+\begin{definition}[Registry]\label{def:core-registry}
+  \uses{def:core-denotation, def:core-zid}
+  \lean{Wikifunctions.Registry}\leanok
+  Resolves a ZID to its denotation --- the global function context, modelling the wiki of \wf{Z2} persistent objects; a missing id yields \texttt{none} (live: \wf{Z504}/\wf{Z550}).
+  Source: \leansrc{Wikifunctions/Core.lean}{38}.
+\end{definition}
+
+\begin{definition}[Evaluator]\label{def:core-eval}
+  \uses{def:core-expr, def:core-registry, def:core-denotation}
+  \lean{Wikifunctions.eval, Wikifunctions.evalArgs}\leanok
+  A total, mutually-structural evaluator: \texttt{arg} indexes the environment, \texttt{lit} returns its value, \texttt{call} resolves the callee through the registry and applies it to eagerly-evaluated arguments. Matches the deployed orchestrator's eager application on the modelled fragment (the one lazy builtin, \wf{Z802}, is out of scope).
+  Source: \leansrc{Wikifunctions/Core.lean}{43}.
+\end{definition}
+
+\chapter{The imperative-Python layer}
+
+A deep embedding of the imperative-Python subset used by two \emph{deployed} Wikifunctions code implementations, with a fuel-interpreter semantics, proved equivalent to Mathlib specifications. Trust assumption (\leansrc{Wikifunctions/Python/Imp.lean}{31}): the embedding faithfully models the deployed interpreter on this subset --- deployed user Python runs on RustPython~0.5.0 / wasm (\divergence{D11}).
+
+\section{The embedding (\texttt{Imp.lean})}
+
+\begin{definition}[Variable store]\label{def:imp-state}
+  \lean{Wikifunctions.Python.State}\leanok
+  A strict association list \texttt{List (String $\times$ Nat)}; first binding wins, unbound reads default to \texttt{0}. Source: \leansrc{Wikifunctions/Python/Imp.lean}{46}.
+\end{definition}
+
+\begin{definition}[Store read/write]\label{def:imp-stateops}
+  \uses{def:imp-state}
+  \lean{Wikifunctions.Python.State.get, Wikifunctions.Python.State.set}\leanok
+  \texttt{get} is a single strict linear scan; \texttt{set} conses a shadowing binding (no lazy closure chain --- the fix for the exponential-blowup bug documented in the source). Source: \leansrc{Wikifunctions/Python/Imp.lean}{50}.
+\end{definition}
+
+\begin{definition}[Expressions and conditions]\label{def:imp-expr}
+  \lean{Wikifunctions.Python.Expr, Wikifunctions.Python.Cond}\leanok
+  Expressions: variable, nat literal, \texttt{+}, \texttt{*}, \texttt{\%}. Conditions: \texttt{e != 0} and \texttt{e1 <= e2}. Source: \leansrc{Wikifunctions/Python/Imp.lean}{69}.
+\end{definition}
+
+\begin{definition}[Statements]\label{def:imp-stmt}
+  \uses{def:imp-expr}
+  \lean{Wikifunctions.Python.Stmt}\leanok
+  A \emph{parallel} assignment \texttt{x1, x2 = e1, e2} (both right-hand sides evaluated in the pre-state --- a faithful Python swap), a \texttt{while} loop, and sequencing. Source: \leansrc{Wikifunctions/Python/Imp.lean}{85}.
+\end{definition}
+
+\begin{definition}[Expression / condition evaluation]\label{def:imp-eval}
+  \uses{def:imp-expr, def:imp-stateops}
+  \lean{Wikifunctions.Python.Expr.eval, Wikifunctions.Python.Cond.eval}\leanok
+  Total evaluation of expressions to \texttt{Nat} and conditions to \texttt{Bool}. \texttt{\%} uses total \texttt{Nat.mod} (\divergence{D5}: Python raises on \texttt{\% 0}; provably unreachable in both deployed programs). Source: \leansrc{Wikifunctions/Python/Imp.lean}{94}.
+\end{definition}
+
+\begin{definition}[Parallel assignment semantics]\label{def:imp-dopassign}
+  \uses{def:imp-stateops, def:imp-eval}
+  \lean{Wikifunctions.Python.doPassign}\leanok
+  Both right-hand sides are evaluated in the current state, then both targets updated. Source: \leansrc{Wikifunctions/Python/Imp.lean}{109}.
+\end{definition}
+
+\begin{definition}[Fuel interpreter]\label{def:imp-run}
+  \uses{def:imp-stmt, def:imp-dopassign, def:imp-eval}
+  \lean{Wikifunctions.Python.Stmt.run}\leanok
+  Operational semantics of statements; \texttt{none} means the fuel budget was exhausted. Source: \leansrc{Wikifunctions/Python/Imp.lean}{116}.
+\end{definition}
+
+\section{\texttt{Z13701} ``are coprime'' --- verified against \texorpdfstring{\texttt{Nat.Coprime}}{Nat.Coprime}}
+
+Models the deployed Python implementation \wfl{Z29182}{impl.\ of \wf{Z13701}}: \texttt{while b != 0: a, b = b, a \% b; return a == 1}.
+
+\begin{definition}[The coprime program]\label{def:z13701-prog}
+  \uses{def:imp-stmt, def:imp-state}
+  \lean{Wikifunctions.Python.loop, Wikifunctions.Python.initState}\leanok
+  A 1:1 transcription of \wf{Z29182} as \texttt{Stmt} data. Source: \leansrc{Wikifunctions/Python/Z13701.lean}{50}. (\divergence{D9}: the proved program and the \texttt{DiffDriver} program are token-identical twins in separate modules.)
+\end{definition}
+
+\begin{lemma}[Euclidean invariant]\label{lem:z13701-gcd}
+  \uses{def:imp-dopassign}
+  \lean{Wikifunctions.Python.gcd_body}\leanok
+  The loop body preserves \texttt{Nat.gcd}: after \texttt{a, b = b, a \% b} one has \texttt{gcd b (a \% b) = gcd a b}. Source: \leansrc{Wikifunctions/Python/Z13701.lean}{85}.
+  \begin{proof}\leanok Via \texttt{Nat.gcd\_rec} and \texttt{Nat.gcd\_comm}.\end{proof}
+\end{lemma}
+
+\begin{lemma}[Loop correctness and termination]\label{lem:z13701-loop}
+  \uses{def:imp-run, lem:z13701-gcd, def:z13701-prog}
+  \lean{Wikifunctions.Python.loop_correct}\leanok
+  With fuel exceeding \texttt{b}, the loop terminates and its final \texttt{a} is \texttt{gcd a b}. Source: \leansrc{Wikifunctions/Python/Z13701.lean}{99}.
+  \begin{proof}\leanok Induction on fuel; the recursive step decreases \texttt{b} by \texttt{Nat.mod\_lt}.\end{proof}
+\end{lemma}
+
+\begin{definition}[Program result]\label{def:z13701-run}
+  \uses{def:z13701-prog, def:imp-run}
+  \lean{Wikifunctions.Python.runProgram}\leanok
+  Runs the loop with fuel \texttt{b+1}, then returns \texttt{a == 1}. Source: \leansrc{Wikifunctions/Python/Z13701.lean}{136}.
+\end{definition}
+
+\begin{theorem}[Coprimality]\label{thm:z13701}
+  \uses{def:z13701-run, lem:z13701-loop}
+  \lean{Wikifunctions.Python.runProgram_eq_coprime}\leanok
+  For all \(a, b\), \texttt{runProgram a b = some (decide (Nat.Coprime a b))} --- the deployed \wf{Z13701} computes exactly Mathlib's \texttt{Nat.Coprime}. Source: \leansrc{Wikifunctions/Python/Z13701.lean}{143}.
+  \begin{proof}\leanok From the loop lemma (\ref{lem:z13701-loop}); axioms \texttt{[propext, Classical.choice, Quot.sound]}.\end{proof}
+\end{theorem}
+
+\section{\texttt{Z13667} ``factorial'' --- verified against \texorpdfstring{\texttt{Nat.factorial}}{Nat.factorial}}
+
+Models the deployed Python \wfl{Z13668}{impl.\ of \wf{Z13667}}: a \texttt{for i in range} accumulator, embedded via a \texttt{while} desugaring.
+
+\begin{definition}[The factorial program]\label{def:z13667-prog}
+  \uses{def:imp-stmt, def:imp-state}
+  \lean{Wikifunctions.Python.facLoop, Wikifunctions.Python.facInit}\leanok
+  Transcription of \wf{Z13668} as \texttt{Stmt} data (the \texttt{for}$\to$\texttt{while} desugaring is observationally exact for the returned accumulator). Source: \leansrc{Wikifunctions/Python/Z13667Prog.lean}{37}.
+\end{definition}
+
+\begin{lemma}[Factorial loop correctness]\label{lem:z13667-loop}
+  \uses{def:imp-run, def:z13667-prog}
+  \lean{Wikifunctions.Python.facLoop_correct}\leanok
+  Source: \leansrc{Wikifunctions/Python/Z13667.lean}{92}.
+  \begin{proof}\leanok Induction on the loop counter.\end{proof}
+\end{lemma}
+
+\begin{definition}[Factorial result]\label{def:z13667-run}
+  \uses{def:z13667-prog, def:imp-run}
+  \lean{Wikifunctions.Python.runFac}\leanok
+  Source: \leansrc{Wikifunctions/Python/Z13667Prog.lean}{46}.
+\end{definition}
+
+\begin{theorem}[Factorial]\label{thm:z13667}
+  \uses{def:z13667-run, lem:z13667-loop}
+  \lean{Wikifunctions.Python.runFac_eq_factorial}\leanok
+  For all \(n\), \texttt{runFac n = some (Nat.factorial n)}. Source: \leansrc{Wikifunctions/Python/Z13667.lean}{144}. (\divergence{D13}: the theorem characterizes language semantics; the platform bounds execution by fuel/timeout at large \(n\).)
+  \begin{proof}\leanok From the loop lemma (\ref{lem:z13667-loop}); clean axioms.\end{proof}
+\end{theorem}
+
+\chapter{The composite layer}
+
+A deep embedding of the \wf{Z14}K2 \emph{composition} language with a total evaluator, proving six real composite implementations equal to their Mathlib oracles. Each leaf carries a Mathlib-backed denotation; a composite inherits correctness from its leaves and the evaluator.
+
+\begin{definition}[Composite value universe]\label{def:eval-val}
+  \lean{Wikifunctions.Val}\leanok
+  Naturals (\wf{Z13518}), booleans (\wf{Z40}), rationals (\wf{Z19677}). (This is \texttt{WikifunctionsEval.lean}'s own \texttt{Val}, distinct from the core value universe (\ref{def:core-val}) --- \divergence{D-info}: the two files define clashing \texttt{Wikifunctions.Val}.) Source: \leansrc{WikifunctionsEval.lean}{58}.
+\end{definition}
+
+\begin{definition}[Leaf library]\label{def:eval-leaf}
+  \lean{Wikifunctions.Leaf}\leanok
+  Eleven primitive functions, each a live Wikifunction: \wf{Z13522} (natEq), \wf{Z13612} (gcd), \wf{Z13539} (mul), \wf{Z13546} (div), \wf{Z13521} (add), \wf{Z13582} (dec), \wf{Z13846} (ite), \wf{Z13848} (choose), \wf{Z13993} (sumProperDivisors), \wf{Z19706} (ratMul), \wf{Z19708} (ratDiv). Source: \leansrc{WikifunctionsEval.lean}{66}.
+\end{definition}
+
+\begin{definition}[Leaf denotations]\label{def:eval-leafeval}
+  \uses{def:eval-leaf, def:eval-val}
+  \lean{Wikifunctions.Leaf.eval}\leanok
+  Each clause \emph{is} that leaf's Mathlib-backed specification (\texttt{Nat.gcd}, \texttt{Nat.choose}, \texttt{Nat.properDivisors} sum, \dots). \texttt{div}/\texttt{ratDiv} totalize division by zero to \texttt{0} (\divergence{D3}, \divergence{D4}: live guards return a \wf{Z28194} error). Source: \leansrc{WikifunctionsEval.lean}{89}.
+\end{definition}
+
+\begin{definition}[Composition AST and evaluator]\label{def:eval-eval}
+  \uses{def:eval-val, def:eval-leafeval}
+  \lean{Wikifunctions.Expr, Wikifunctions.eval, Wikifunctions.evalArgs}\leanok
+  The \wf{Z14}K2 body shape and its total evaluator. Source: \leansrc{WikifunctionsEval.lean}{82}.
+\end{definition}
+
+\section{The six verified composites}
+
+\begin{definition}[coprime composite]\label{def:comp-coprime}
+  \uses{def:eval-eval}
+  \lean{Wikifunctions.coprimeComposite}\leanok
+  The real body of \wfl{Z13702}{composite of \wf{Z13701}}: \texttt{natEq(gcd(a,b), 1)}. Source: \leansrc{WikifunctionsEval.lean}{123}.
+\end{definition}
+\begin{theorem}[coprime composite correct]\label{thm:comp-coprime}
+  \uses{def:comp-coprime}
+  \lean{Wikifunctions.coprimeComposite_correct}\leanok
+  \texttt{eval} of the composite \(=\) \texttt{decide (Nat.Coprime a b)}. Source: \leansrc{WikifunctionsEval.lean}{127}.
+  \begin{proof}\leanok\end{proof}
+\end{theorem}
+
+\begin{definition}[lcm composite]\label{def:comp-lcm}
+  \uses{def:eval-eval}
+  \lean{Wikifunctions.lcmComposite}\leanok
+  The real body of \wfl{Z13661}{composite of \wf{Z13660}}: \texttt{divide(multiply(a,b), gcd(a,b))}. Source: \leansrc{WikifunctionsEval.lean}{136}.
+\end{definition}
+\begin{theorem}[lcm composite correct]\label{thm:comp-lcm}
+  \uses{def:comp-lcm}
+  \lean{Wikifunctions.lcmComposite_correct}\leanok
+  \texttt{eval} \(=\) \texttt{Nat.lcm a b}. Source: \leansrc{WikifunctionsEval.lean}{140}. (\divergence{D3}: at \((0,0)\) the total model returns \texttt{0} where live returns a \wf{Z28194} error.)
+  \begin{proof}\leanok\end{proof}
+\end{theorem}
+
+\begin{definition}[Kronecker composite]\label{def:comp-kron}
+  \uses{def:eval-eval}
+  \lean{Wikifunctions.kroneckerComposite}\leanok
+  The real body of \wfl{Z15852}{composite of \wf{Z15849}}: \texttt{if(natEq(i,j), 1, 0)}. Source: \leansrc{WikifunctionsEval.lean}{145}.
+\end{definition}
+\begin{theorem}[Kronecker composite correct]\label{thm:comp-kron}
+  \uses{def:comp-kron}
+  \lean{Wikifunctions.kroneckerComposite_correct}\leanok
+  Source: \leansrc{WikifunctionsEval.lean}{150}.
+  \begin{proof}\leanok\end{proof}
+\end{theorem}
+
+\begin{definition}[r-simplex composite]\label{def:comp-simplex}
+  \uses{def:eval-eval}
+  \lean{Wikifunctions.simplexComposite}\leanok
+  The real body of \wfl{Z15487}{composite of \wf{Z15483}}: \texttt{choose(add(n, dec(r)), r)}. Source: \leansrc{WikifunctionsEval.lean}{157}.
+\end{definition}
+\begin{theorem}[r-simplex composite correct]\label{thm:comp-simplex}
+  \uses{def:comp-simplex}
+  \lean{Wikifunctions.simplexComposite_correct}\leanok
+  Agrees with \texttt{Nat.multichoose} for all \(n, r\) (including \(r = 0\), since live \texttt{dec} truncates at 0). Source: \leansrc{WikifunctionsEval.lean}{162}.
+  \begin{proof}\leanok\end{proof}
+\end{theorem}
+
+\begin{definition}[Bayes composite]\label{def:comp-bayes}
+  \uses{def:eval-eval}
+  \lean{Wikifunctions.bayesComposite}\leanok
+  The real body of \wfl{Z20001}{composite of \wf{Z20000}}: \texttt{divide(multiply(K1,K2), K3)} over rationals. Source: \leansrc{WikifunctionsEval.lean}{167}. (\divergence{D15}: argument labels are transposed vs live; values are correct by commutativity.)
+\end{definition}
+\begin{theorem}[Bayes composite correct]\label{thm:comp-bayes}
+  \uses{def:comp-bayes}
+  \lean{Wikifunctions.bayesComposite_correct}\leanok
+  \texttt{eval} \(=\) the posterior \(P(B|A)\cdot P(A)/P(B)\). Source: \leansrc{WikifunctionsEval.lean}{171}. (\divergence{D4}: at \(P(B)=0\) the total model returns \texttt{0} where live errors.)
+  \begin{proof}\leanok\end{proof}
+\end{theorem}
+
+\begin{definition}[perfect-number composite]\label{def:comp-perfect}
+  \uses{def:eval-eval}
+  \lean{Wikifunctions.perfectComposite}\leanok
+  The real body of \wfl{Z14934}{composite of \wf{Z14933}}: \texttt{natEq(sumProperDivisors(n), n)}. Source: \leansrc{WikifunctionsEval.lean}{181}.
+\end{definition}
+\begin{theorem}[perfect composite correct]\label{thm:comp-perfect}
+  \uses{def:comp-perfect}
+  \lean{Wikifunctions.perfectComposite_correct, Wikifunctions.perfectComposite_perfect}\leanok
+  Tests \(\sum(\text{proper divisors of } n) = n\); for \(n > 0\) it agrees exactly with \texttt{Nat.Perfect}. Source: \leansrc{WikifunctionsEval.lean}{185}.
+  \begin{proof}\leanok The composite omits the positivity guard, matched by the \(0 < n\) hypothesis.\end{proof}
+\end{theorem}
+
+\chapter{The spec corpus}
+
+\texttt{WikifunctionsSpecs.lean} pins a Mathlib oracle and defining properties for each function in the 25-member addressable set. These are a flat catalog (no inter-dependencies), so they are tabulated rather than graphed. Every row was checked against the live signature (\texttt{wikilambda\_fetch}, 2026-07-02); the tier and status columns follow SPEC\_AUDIT.md.
+
+\begin{center}
+\small
+\begin{tabular}{l l l l}
+\textbf{WikiLambda} & \textbf{Lean spec} & \textbf{Tier} & \textbf{Status} \\
+\hline
+\wf{Z12427} & \leansrc{WikifunctionsSpecs.lean}{65}  & composite & clean \\
+\wf{Z13612} & \leansrc{WikifunctionsSpecs.lean}{83}  & composite & clean \\
+\wf{Z13660} & \leansrc{WikifunctionsSpecs.lean}{104} & composite & clean \\
+\wf{Z13667} & \leansrc{WikifunctionsSpecs.lean}{121} & composite & clean \\
+\wf{Z13701} & \leansrc{WikifunctionsSpecs.lean}{145} & composite & clean \\
+\wf{Z13822} & \leansrc{WikifunctionsSpecs.lean}{164} & composite & clean \\
+\wf{Z13835} & \leansrc{WikifunctionsSpecs.lean}{194} & composite & clean \\
+\wf{Z13955} & \leansrc{WikifunctionsSpecs.lean}{210} & composite & clean \\
+\wf{Z14933} & \leansrc{WikifunctionsSpecs.lean}{234} & composite & clean \\
+\wf{Z18194} & \leansrc{WikifunctionsSpecs.lean}{256} & composite & repr.\ mismatch (tagged) \\
+\wf{Z13521} & \leansrc{WikifunctionsSpecs.lean}{285} & composite & clean \\
+\wf{Z15483} & \leansrc{WikifunctionsSpecs.lean}{304} & composite & clean \\
+\wf{Z15849} & \leansrc{WikifunctionsSpecs.lean}{322} & composite & clean \\
+\wf{Z20000} & \leansrc{WikifunctionsSpecs.lean}{343} & oracle & \divergence{D18} tier \\
+\wf{Z28925} & \leansrc{WikifunctionsSpecs.lean}{362} & composite & \divergence{D1} order-sensitive \\
+\wf{Z30840} & \leansrc{WikifunctionsSpecs.lean}{397} & oracle & clean \\
+\wf{Z10862} & \leansrc{WikifunctionsSpecs.lean}{434} & oracle & \divergence{D2} float64-lossy \\
+\wf{Z21917} & \leansrc{WikifunctionsSpecs.lean}{455} & oracle & repr.\ mismatch (tagged) \\
+\wf{Z31173} & \leansrc{WikifunctionsSpecs.lean}{479} & oracle & clean \\
+\wf{Z21003} & \leansrc{WikifunctionsSpecs.lean}{496} & oracle (Float) & clean \\
+\wf{Z21005} & \leansrc{WikifunctionsSpecs.lean}{523} & oracle (Float) & \divergence{D8} log10 ULP \\
+\wf{Z12665} & \leansrc{WikifunctionsSpecs.lean}{550} & oracle (Float) & clean \\
+\wf{Z13341} & \leansrc{WikifunctionsSpecs.lean}{576} & oracle (Float) & \divergence{D7} partial impl \\
+\wf{Z35278} & \leansrc{WikifunctionsSpecs.lean}{623} & oracle (Float) & clean \\
+\wf{Z16483} & \leansrc{WikifunctionsSpecs.lean}{673} & spec-only & clean \\
+\end{tabular}
+\end{center}
+
+\paragraph{Community types this corpus rests on.} \wf{Z13518} (natural, a decimal-string record), \wf{Z16683} (integer), \wf{Z19677} (rational: sign/numerator/denominator), \wf{Z20838} (float64). Lean's \texttt{Float} is IEEE-754 binary64, matching the \wf{Z20838} carrier, so the Float-tier oracles are \texttt{\#eval}-comparable to the live functions.

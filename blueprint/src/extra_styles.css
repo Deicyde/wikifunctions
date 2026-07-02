@@ -1,0 +1,4 @@
+/* Blueprint-specific tweaks for the Wikifunctions x Lean blueprint. */
+.wf-status { font-size: 0.85em; color: #555; }
+a[href*="wikifunctions.org"] { text-decoration: none; border-bottom: 1px dotted #3366cc; }
+.thm .lean_link { font-weight: bold; }
