@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import py2imp  # noqa: E402
+import fetch    # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
@@ -40,10 +41,17 @@ def astdump(src: str) -> str:
 
 def main() -> int:
     skip_lean = "--skip-lean" in sys.argv[1:]  # P1/P2 only (no Lean toolchain needed)
+    live = "--live" in sys.argv[1:]            # fetch deployed source instead of vendored
     fails: list[str] = []
+    if live:
+        print("source: LIVE Wikifunctions API (deployed Z14K3 code)\n")
 
     for name in PROGRAMS:
-        src = (HERE / "programs" / f"{name}.py").read_text()
+        if live:
+            impl, src = fetch.deployed_code(name)
+            print(f"[src] {name}: fetched deployed implementation {impl}")
+        else:
+            src = (HERE / "programs" / f"{name}.py").read_text()
         imp = py2imp.translate(src)
         reprinted = py2imp.render_py(imp)
 
