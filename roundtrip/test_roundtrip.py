@@ -39,6 +39,7 @@ def astdump(src: str) -> str:
 
 
 def main() -> int:
+    skip_lean = "--skip-lean" in sys.argv[1:]  # P1/P2 only (no Lean toolchain needed)
     fails: list[str] = []
 
     for name in PROGRAMS:
@@ -66,7 +67,9 @@ def main() -> int:
                 fails.append(f"{name}: P2 reconstruction is not AST-equal to the source")
 
     # P3 — kernel certificate for all programs
-    for name in PROGRAMS:
+    if skip_lean:
+        print("[P3] skipped (--skip-lean): kernel certificate needs a Lean toolchain")
+    for name in [] if skip_lean else PROGRAMS:
         subprocess.run([sys.executable, str(HERE / "py2imp.py"), "check",
                         str(HERE / "programs" / f"{name}.py")], check=True,
                        stdout=subprocess.DEVNULL)

@@ -1,0 +1,62 @@
+name: Round-trip
+
+# Runs the A1 Python<->Imp round-trip harness (roundtrip/test_roundtrip.py):
+#   P1 Imp idempotence, P2 Python fidelity (pure Python), and
+#   P3 the Lean-kernel certificate that the mechanical translation equals the
+#   committed hand-transcription. The Lean closure (Imp + the two *Prog modules)
+#   is Mathlib-free, so no `lake exe cache get` / mathlib build is needed — just
+#   elan plus a targeted `lake build` of the two Prog modules.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'roundtrip/**'
+      - 'Wikifunctions/Python/**'
+      - 'lakefile.toml'
+      - 'lean-toolchain'
+      - '.github/workflows/roundtrip.yml'
+  pull_request:
+    paths:
+      - 'roundtrip/**'
+      - 'Wikifunctions/Python/**'
+      - 'lakefile.toml'
+      - 'lean-toolchain'
+      - '.github/workflows/roundtrip.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  roundtrip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Pure-Python properties (P1, P2)
+        # Fast feedback before the Lean toolchain is set up.
+        run: python3 roundtrip/test_roundtrip.py --skip-lean
+
+      - name: Install elan (Lean toolchain manager)
+        run: |
+          curl -sSfL https://elan.lean-lang.org/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Lean toolchain and lake deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.elan
+            .lake
+          key: lean-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
+
+      - name: Build the Mathlib-free Prog modules
+        run: lake build Wikifunctions.Python.Z13701Prog Wikifunctions.Python.Z13667Prog
+
+      - name: Full harness incl. P3 kernel certificate
+        run: python3 roundtrip/test_roundtrip.py
