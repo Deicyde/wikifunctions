@@ -49,7 +49,7 @@ The repo root **is** the lake project (pinned mathlib via git-require; first bui
 │   ├── difftest.py / difftest_chunked.py   ← CPython vs embedding differential test
 │   ├── leanpy/                         ← CPython **inside** the Lean process (in-process testing)
 │   ├── Z13701_coprime.dfy              ← independent Dafny verification of the same contract
-│   └── z13701_coprime.rs               ← Rust twin for the difftest
+│   └── z13701_coprime.rs               ← independent Verus (Rust + Z3) proof of the same contract
 └── data/                               ← vendored snapshots of the WikiLean join (see below)
 ```
 
