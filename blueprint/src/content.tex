@@ -30,7 +30,23 @@ The system is specified by a four-layer stack, cited throughout: the prose \href
 
 \begin{definition}[Value universe]\label{def:core-val}
   \lean{Wikifunctions.Val}\leanok
-  The subset of \wf{Z4} types the evaluator needs: naturals (\wf{Z13518}), booleans (\wf{Z40}), and rationals (\wf{Z19677}).
+  In WikiLambda \emph{every} value is a ZObject --- a key/value record whose
+  \texttt{Z1K1} names its type. The number 42 is
+  \texttt{\{Z1K1: Z13518, Z13518K1: "42"\}} (a record wrapping a digit-string), and
+  \texttt{true} is \texttt{\{Z1K1: Z40, Z40K1: Z41\}}. \texttt{Val} does \emph{not}
+  mirror that record structure; it models the \emph{denotation} --- the
+  mathematical value each record represents --- for the three carrier types these
+  composites use:
+  \begin{itemize}
+    \item \wf{Z13518} natural number (a \wf{Z6} digit-string) \(\mapsto\) \texttt{Val.nat} \((\mathbb{N})\);
+    \item \wf{Z40} boolean (\wf{Z41}/\wf{Z42}) \(\mapsto\) \texttt{Val.bool} (\texttt{Bool});
+    \item \wf{Z19677} rational (a sign / numerator / denominator record) \(\mapsto\) \texttt{Val.rat} \((\mathbb{Q})\).
+  \end{itemize}
+  This is sound because the leaf functions act on the value, never on the
+  record's keys; the one abstraction is that \texttt{Val.rat} normalises, so an
+  unreduced \wf{Z19677} such as \(2/4\) is modelled only up to fraction-equality
+  (\divergence{D-info}). The generic type \wf{Z4} --- the type \emph{of} types,
+  itself such a record --- is \emph{not} what \texttt{Val} models.
   Source: \leansrc{Wikifunctions/Core.lean}{20}.
 \end{definition}
 
@@ -181,7 +197,12 @@ A deep embedding of the \wf{Z14}K2 \emph{composition} language with a total eval
 
 \begin{definition}[Composite value universe]\label{def:eval-val}
   \lean{Wikifunctions.Val}\leanok
-  Naturals (\wf{Z13518}), booleans (\wf{Z40}), rationals (\wf{Z19677}). (This is \texttt{WikifunctionsEval.lean}'s own \texttt{Val}, distinct from the core value universe (\ref{def:core-val}) --- \divergence{D-info}: the two files define clashing \texttt{Wikifunctions.Val}.) Source: \leansrc{WikifunctionsEval.lean}{58}.
+  The same three-type denotation as the core value universe (\ref{def:core-val})
+  --- \wf{Z13518} naturals, \wf{Z40} booleans, \wf{Z19677} rationals, each modelled
+  by the value it represents rather than by its ZObject record. This is
+  \texttt{WikifunctionsEval.lean}'s own \texttt{Val}, a copy distinct from the core
+  one (\divergence{D-info}: the two files define clashing \texttt{Wikifunctions.Val}).
+  Source: \leansrc{WikifunctionsEval.lean}{58}.
 \end{definition}
 
 \begin{definition}[Leaf library]\label{def:eval-leaf}
