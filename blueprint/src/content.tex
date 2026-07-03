@@ -361,37 +361,53 @@ A deep embedding of the \wf{Z14}K2 \emph{composition} language with a total eval
 
 \chapter{Appendix: Wikifunctions value primitives}\label{app:primitives}
 
-\texttt{Val} (\ref{def:core-val}) covers three of a small, fixed menu of value types. The complete set of \emph{built-in} types is the \href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata/-/tree/main/data/CANONICAL}{function-schemata} \texttt{data/CANONICAL/} directory (32 types); the atomic \emph{value} types among them are few, and --- notably --- \textbf{no number type is built in}: naturals, integers, rationals, and floats are community library types built on \wf{Z6} strings (a \wf{Z13518} natural is literally a record wrapping a \wf{Z6} digit-string). Regenerate the two tables below with \repo{blueprint/list\_primitives.py}{\texttt{list\_primitives.py}}.
+\emph{Per the spec-to-the-letter rule, this appendix states only what the schemata and live
+definitions give.} The complete, authoritative set of \textbf{built-in} types is exactly the
+\href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata/-/tree/main/data/CANONICAL}{function-schemata
+\texttt{data/CANONICAL/}} directory (32 typed schemas, plus the \texttt{LIST} and \texttt{RESOLVER}
+schema constructs); each type below links to its schema. \wf{Z13518}, \wf{Z16683}, \wf{Z19677},
+\wf{Z20838} (natural / integer / rational / float) have \emph{no} schema there --- verifiably
+absent from \texttt{CANONICAL/} --- so numbers are community types, not built-ins, and are linked
+to their live \wf{Z4} definitions instead. Groupings marked \emph{(editorial)} are our
+organisation for the reader; the schemata define each type's \emph{structure}, not a
+value-versus-structural split. Regenerate with \repo{blueprint/list\_primitives.py}{\texttt{list\_primitives.py}}.
 
-\textbf{Built-in atomic value types} (\fnmodel{Z1/ZObjects}{Function model}; schemata):
+\textbf{Built-in types whose instances this corpus treats as values} \emph{(editorial grouping)}:
 
 \begin{center}
-\begin{tabular}{lll}
-\textbf{Type} & \textbf{In \texttt{Val}} & \textbf{Note} \\
+\begin{tabular}{llll}
+\textbf{Type} & \textbf{Schema} & \textbf{In \texttt{Val}} & \textbf{Structure (per schema / live \wf{Z4})} \\
 \hline
-\wf{Z6} String                    & --  & the base scalar; backs the numeric types \\
-\wf{Z40} Boolean                  & yes & \wf{Z41} true / \wf{Z42} false \\
-\wf{Z86} Unicode code point       & --  & a character \\
-\wf{Z80} Byte                     & --  & \\
-\wf{Z21} Unit / \wf{Z23} Nothing  & --  & the unit type and its one value \\
-\wf{Z60} Natural language         & --  & closed enumeration \\
-\wf{Z61} Programming language      & --  & closed enumeration \\
-\wf{Z6040} Wikidata statement rank & -- & closed enumeration \\
-\wf{Z5} Error                     & --  & the value a failed call returns (modelled as \texttt{Option.none}) \\
+\wf{Z6} String                    & \schema{Z6}   & --  & a string \\
+\wf{Z40} Boolean                  & \schema{Z40}  & yes & \wf{Z40}K1 \(\in \{\)\wf{Z41}, \wf{Z42}\(\}\) \\
+\wf{Z86} Unicode code point       & \schema{Z86}  & --  & a code point \\
+\wf{Z80} Byte                     & \schema{Z80}  & --  & a byte \\
+\wf{Z21} Unit                     & \schema{Z21}  & --  & one value, \wf{Z23} Nothing \\
+\wf{Z60} Natural language         & \schema{Z60}  & --  & enumeration \\
+\wf{Z61} Programming language      & \schema{Z61}  & --  & enumeration \\
+\wf{Z6040} Wikidata statement rank & \schema{Z6040} & -- & enumeration \\
+\wf{Z5} Error                     & \schema{Z5}   & --  & modelled as \texttt{Option.none} \\
 \end{tabular}
 \end{center}
 
-\textbf{Numeric types} --- community, built on \wf{Z6}; none is built-in:
+The remaining built-ins are, \emph{by usage} (not a schema-level distinction), structural ---
+\wf{Z1}--\wf{Z4} object/type, \wf{Z7}/\wf{Z8} call/function, \wf{Z14}--\wf{Z18}
+implementation/arguments, \wf{Z22} result, \wf{Z39}, \ldots --- or labels (\wf{Z11}/\wf{Z12}).
+
+\textbf{Numeric types} (community; absent from \texttt{CANONICAL/}; linked to their live \wf{Z4}
+definitions):
 
 \begin{center}
 \begin{tabular}{lll}
-\textbf{Type} & \textbf{In \texttt{Val}} & \textbf{Note} \\
+\textbf{Type} & \textbf{In \texttt{Val}} & \textbf{Structure (per live \wf{Z4})} \\
 \hline
-\wf{Z13518} Natural number  & yes & wraps a \wf{Z6} digit-string (\texttt{Val.nat}) \\
-\wf{Z16683} Integer         & --  & \\
-\wf{Z19677} Rational number & yes & sign / numerator / denominator (\texttt{Val.rat}) \\
-\wf{Z20838} float64         & --  & IEEE-754 binary64 (Lean \texttt{Float}) \\
+\wf{Z13518} Natural number  & \texttt{Val.nat} & \wf{Z13518}K1, a \wf{Z6} digit-string \\
+\wf{Z16683} Integer         & --               & \\
+\wf{Z19677} Rational number & \texttt{Val.rat} & \wf{Z19677}K1 sign / K2 numerator / K3 denominator \\
+\wf{Z20838} float64         & --               & IEEE-754 binary64 (Lean \texttt{Float}) \\
 \end{tabular}
 \end{center}
 
-Everything else built-in is structural machinery (\wf{Z1}--\wf{Z4} object/type, \wf{Z7}/\wf{Z8} call/function, \wf{Z14}--\wf{Z18} implementation/arguments, \wf{Z22} result, \wf{Z39}, \ldots) or labels (\wf{Z11}/\wf{Z12} text); generic containers like \wf{Z881} typed lists are composite, not primitive. Adding one to \texttt{Val} is a new constructor: string functions --- already present in the spec corpus (e.g.\ \wf{Z35278} entropy, modelled with native Lean \texttt{String}) --- would want \wf{Z6}; a higher-order function would want a \wf{Z9}/function value (\divergence{D17}).
+To add one to \texttt{Val} is a new constructor: a string function (already in the spec corpus,
+e.g.\ \wf{Z35278}, modelled with native Lean \texttt{String}) would want \wf{Z6}; a higher-order
+function would want a \wf{Z9} / function value (\divergence{D17}).
