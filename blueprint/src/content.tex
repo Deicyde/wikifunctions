@@ -7,11 +7,12 @@
 
 \chapter*{How to read this blueprint}
 
-This blueprint maps the Lean~4 formalization in the \href{https://github.com/Deicyde/wikifunctions}{\texttt{Deicyde/wikifunctions}} repository onto the deployed WikiLambda / Wikifunctions system it models. Every node carries two kinds of link:
+This blueprint maps the Lean~4 formalization in the \href{https://github.com/Deicyde/wikifunctions}{\texttt{Deicyde/wikifunctions}} repository onto the deployed WikiLambda / Wikifunctions system it models. Every node carries:
 
 \begin{itemize}
   \item a \textbf{Lean} link (\leansrc{Wikifunctions/Core.lean}{43}-style) to the exact source line, and the declaration name shown by the \textsf{L$\exists\forall$N} badge;
-  \item a \textbf{WikiLambda} link (e.g.\ \wf{Z13701}) to the live object on \href{https://www.wikifunctions.org}{wikifunctions.org} that the Lean models.
+  \item a \textbf{WikiLambda} link (e.g.\ \wf{Z13701}) to the live object on \href{https://www.wikifunctions.org}{wikifunctions.org} that the Lean models;
+  \item and, wherever a node makes a normative claim about \emph{types} or \emph{behavior}, a \textbf{formal-spec} citation --- the relevant \fnmodel{Z8/Functions}{Function model} section and \schema{Z8}-style function-schemata file --- so the claim rests on the spec, not on assertion. (For example, the Value universe, Definition~\ref{def:core-val}, has its type closure pinned to each function's \wf{Z8} signature and machine-checked by \repo{blueprint/check\_value\_universe.py}{a script}.)
 \end{itemize}
 
 In the dependency graph, a node is filled green when its Lean statement \emph{and} proof are complete; edges are \texttt{\textbackslash uses} dependencies. Everything here is proved with no \texttt{sorry}; the two headline theorems depend only on \texttt{[propext, Classical.choice, Quot.sound]}.
@@ -45,6 +46,14 @@ The system is specified by a four-layer stack, cited throughout: the prose \href
     \item \wf{Z40} boolean (\wf{Z41}/\wf{Z42}) \(\mapsto\) \texttt{Val.bool} (\texttt{Bool});
     \item \wf{Z19677} rational (a sign / numerator / denominator record) \(\mapsto\) \texttt{Val.rat} \((\mathbb{Q})\).
   \end{itemize}
+  Each carrier is pinned by the function's formal \wf{Z8} signature --- its \wf{Z8}K1
+  argument declarations (each a \wf{Z17} typed by \wf{Z17}K1) and its \wf{Z8}K2 return
+  type (\fnmodel{Z8/Functions}{Function model \S~Z8/Functions}; schema \schema{Z8}).
+  \textbf{Completeness:} the type closure of all six composites and their eleven leaves
+  is exactly \(\{\wf{Z13518}, \wf{Z40}, \wf{Z19677}\}\), machine-verified against the
+  17 live \wf{Z8} signatures by \repo{blueprint/check\_value\_universe.py}{\texttt{check\_value\_universe.py}}
+  --- so nothing the modelled functions pass or return falls outside \texttt{Val}.
+
   A \emph{ZID} (e.g.\ \texttt{"Z13612"}) is deliberately \emph{not} a \texttt{Val}: it
   \emph{names} a function, and is modelled separately as the callee of \texttt{Expr.call}
   and the key of the \texttt{Registry} (\texttt{abbrev ZID := String}), not as a computed

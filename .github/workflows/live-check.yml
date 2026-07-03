@@ -26,6 +26,9 @@ jobs:
       - name: Drift check (vendored vs deployed source)
         run: python3 roundtrip/fetch.py --check
 
+      - name: Value-universe completeness (Val vs live Z8 signatures)
+        run: python3 blueprint/check_value_universe.py
+
       - name: Install elan (Lean toolchain manager)
         run: |
           curl -sSfL https://elan.lean-lang.org/elan-init.sh \

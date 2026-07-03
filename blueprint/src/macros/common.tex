@@ -21,3 +21,10 @@
 \newcommand{\leansrc}[2]{\href{https://github.com/Deicyde/wikifunctions/blob/main/#1\#L#2}{\texttt{#1:#2}}}
 % \divergence{Dn} : reference an audit finding in SPEC_AUDIT.md.
 \newcommand{\divergence}[1]{\href{https://github.com/Deicyde/wikifunctions/blob/main/SPEC_AUDIT.md}{\textbf{#1}}}
+% \fnmodel{anchor}{text} : cite a section of the Abstract Wikipedia Function model
+% (the canonical prose spec). Use for the normative statement behind a claim.
+\newcommand{\fnmodel}[2]{\href{https://www.wikifunctions.org/wiki/Wikifunctions:Function_model\##1}{#2}}
+% \schema{Zxx} : cite the machine-enforced function-schemata JSON-Schema for a type.
+\newcommand{\schema}[1]{\href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata/-/blob/main/data/CANONICAL/#1.yaml}{\texttt{#1.yaml}}}
+% \repo{path}{text} : link to a file in this repository.
+\newcommand{\repo}[2]{\href{https://github.com/Deicyde/wikifunctions/blob/main/#1}{#2}}
