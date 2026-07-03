@@ -35,7 +35,10 @@ The system is specified by a four-layer stack, cited throughout: the prose \href
   a \emph{tagged union} with three constructors --- \texttt{Val.nat} \((\mathbb{N})\),
   \texttt{Val.bool} (\texttt{Bool}), \texttt{Val.rat} \((\mathbb{Q})\) --- one per type the six
   modelled composites pass around (\wf{Z13518} naturals, \wf{Z40} booleans, \wf{Z19677}
-  rationals). Each constructor holds the \emph{value a live ZObject denotes}, not the record:
+  rationals). These three are drawn from a \emph{small, fixed menu} of Wikifunctions value
+  primitives (Appendix~\ref{app:primitives}); \texttt{Val} gains a constructor whenever a
+  future composite needs another (a string function would want \wf{Z6}, an integer one
+  \wf{Z16683}, and so on). Each constructor holds the \emph{value a live ZObject denotes}, not the record:
   the number \(42\) is \texttt{\{Z1K1: Z13518, Z13518K1: "42"\}}, and \texttt{Val.nat 42} keeps
   just the \(42\). \emph{Why a union, and why only these three --- see the remark.}
   \textbf{Complete:} across all six composites and their eleven leaves, every argument and
@@ -355,3 +358,40 @@ A deep embedding of the \wf{Z14}K2 \emph{composition} language with a total eval
 \end{center}
 
 \paragraph{Community types this corpus rests on.} \wf{Z13518} (natural, a decimal-string record), \wf{Z16683} (integer), \wf{Z19677} (rational: sign/numerator/denominator), \wf{Z20838} (float64). Lean's \texttt{Float} is IEEE-754 binary64, matching the \wf{Z20838} carrier, so the Float-tier oracles are \texttt{\#eval}-comparable to the live functions.
+
+\chapter{Appendix: Wikifunctions value primitives}\label{app:primitives}
+
+\texttt{Val} (\ref{def:core-val}) covers three of a small, fixed menu of value types. The complete set of \emph{built-in} types is the \href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata/-/tree/main/data/CANONICAL}{function-schemata} \texttt{data/CANONICAL/} directory (32 types); the atomic \emph{value} types among them are few, and --- notably --- \textbf{no number type is built in}: naturals, integers, rationals, and floats are community library types built on \wf{Z6} strings (a \wf{Z13518} natural is literally a record wrapping a \wf{Z6} digit-string). Regenerate the two tables below with \repo{blueprint/list\_primitives.py}{\texttt{list\_primitives.py}}.
+
+\textbf{Built-in atomic value types} (\fnmodel{Z1/ZObjects}{Function model}; schemata):
+
+\begin{center}
+\begin{tabular}{lll}
+\textbf{Type} & \textbf{In \texttt{Val}} & \textbf{Note} \\
+\hline
+\wf{Z6} String                    & --  & the base scalar; backs the numeric types \\
+\wf{Z40} Boolean                  & yes & \wf{Z41} true / \wf{Z42} false \\
+\wf{Z86} Unicode code point       & --  & a character \\
+\wf{Z80} Byte                     & --  & \\
+\wf{Z21} Unit / \wf{Z23} Nothing  & --  & the unit type and its one value \\
+\wf{Z60} Natural language         & --  & closed enumeration \\
+\wf{Z61} Programming language      & --  & closed enumeration \\
+\wf{Z6040} Wikidata statement rank & -- & closed enumeration \\
+\wf{Z5} Error                     & --  & the value a failed call returns (modelled as \texttt{Option.none}) \\
+\end{tabular}
+\end{center}
+
+\textbf{Numeric types} --- community, built on \wf{Z6}; none is built-in:
+
+\begin{center}
+\begin{tabular}{lll}
+\textbf{Type} & \textbf{In \texttt{Val}} & \textbf{Note} \\
+\hline
+\wf{Z13518} Natural number  & yes & wraps a \wf{Z6} digit-string (\texttt{Val.nat}) \\
+\wf{Z16683} Integer         & --  & \\
+\wf{Z19677} Rational number & yes & sign / numerator / denominator (\texttt{Val.rat}) \\
+\wf{Z20838} float64         & --  & IEEE-754 binary64 (Lean \texttt{Float}) \\
+\end{tabular}
+\end{center}
+
+Everything else built-in is structural machinery (\wf{Z1}--\wf{Z4} object/type, \wf{Z7}/\wf{Z8} call/function, \wf{Z14}--\wf{Z18} implementation/arguments, \wf{Z22} result, \wf{Z39}, \ldots) or labels (\wf{Z11}/\wf{Z12} text); generic containers like \wf{Z881} typed lists are composite, not primitive. Adding one to \texttt{Val} is a new constructor: string functions --- already present in the spec corpus (e.g.\ \wf{Z35278} entropy, modelled with native Lean \texttt{String}) --- would want \wf{Z6}; a higher-order function would want a \wf{Z9}/function value (\divergence{D17}).
