@@ -31,38 +31,45 @@ The system is specified by a four-layer stack, cited throughout: the prose \href
 
 \begin{definition}[Value universe]\label{def:core-val}
   \lean{Wikifunctions.Val}\leanok
-  \emph{Not} an inventory of Wikifunctions' types. Wikifunctions has many basic
-  types this omits --- \wf{Z6} strings, \wf{Z9} references, \wf{Z881} typed lists,
-  \wf{Z20838} floats, and every other community type. \texttt{Val} is the set of
-  values the \emph{six modelled composites} pass as arguments and return, and it has
-  exactly three constructors because those six functions touch exactly three
-  carriers. It grows per modelled function, not per Wikifunctions type.
-
-  Every WikiLambda value is a ZObject (a key/value record whose \texttt{Z1K1} names
-  its type: the number 42 is \texttt{\{Z1K1: Z13518, Z13518K1: "42"\}}); \texttt{Val}
-  keeps only each record's \emph{denotation}:
-  \begin{itemize}
-    \item \wf{Z13518} natural (a \wf{Z6} digit-string) \(\mapsto\) \texttt{Val.nat} \((\mathbb{N})\);
-    \item \wf{Z40} boolean (\wf{Z41}/\wf{Z42}) \(\mapsto\) \texttt{Val.bool} (\texttt{Bool});
-    \item \wf{Z19677} rational (a sign / numerator / denominator record) \(\mapsto\) \texttt{Val.rat} \((\mathbb{Q})\).
-  \end{itemize}
-  Each carrier is pinned by the function's formal \wf{Z8} signature --- its \wf{Z8}K1
-  argument declarations (each a \wf{Z17} typed by \wf{Z17}K1) and its \wf{Z8}K2 return
-  type (\fnmodel{Z8/Functions}{Function model \S~Z8/Functions}; schema \schema{Z8}).
-  \textbf{Completeness:} the type closure of all six composites and their eleven leaves
-  is exactly \(\{\wf{Z13518}, \wf{Z40}, \wf{Z19677}\}\), machine-verified against the
-  17 live \wf{Z8} signatures by \repo{blueprint/check\_value\_universe.py}{\texttt{check\_value\_universe.py}}
-  --- so nothing the modelled functions pass or return falls outside \texttt{Val}.
-
-  A \emph{ZID} (e.g.\ \texttt{"Z13612"}) is deliberately \emph{not} a \texttt{Val}: it
-  \emph{names} a function, and is modelled separately as the callee of \texttt{Expr.call}
-  and the key of the \texttt{Registry} (\texttt{abbrev ZID := String}), not as a computed
-  value. A \wf{Z9} reference becomes a value only for higher-order functions
-  (\divergence{D17}), which none of these six are. The sole representation abstraction
-  is that \texttt{Val.rat} normalises, so an unreduced \wf{Z19677} such as \(2/4\) is
-  modelled up to fraction-equality (\divergence{D-info}).
+  The single type of values the composition evaluator (\ref{def:core-eval}) computes with:
+  a \emph{tagged union} with three constructors --- \texttt{Val.nat} \((\mathbb{N})\),
+  \texttt{Val.bool} (\texttt{Bool}), \texttt{Val.rat} \((\mathbb{Q})\) --- one per type the six
+  modelled composites pass around (\wf{Z13518} naturals, \wf{Z40} booleans, \wf{Z19677}
+  rationals). Each constructor holds the \emph{value a live ZObject denotes}, not the record:
+  the number \(42\) is \texttt{\{Z1K1: Z13518, Z13518K1: "42"\}}, and \texttt{Val.nat 42} keeps
+  just the \(42\). \emph{Why a union, and why only these three --- see the remark.}
+  \textbf{Complete:} across all six composites and their eleven leaves, every argument and
+  return type is one of these three, machine-verified against the live \wf{Z8} signatures
+  (\fnmodel{Z8/Functions}{Function model \S~Z8}, schema \schema{Z8}) by
+  \repo{blueprint/check\_value\_universe.py}{\texttt{check\_value\_universe.py}}.
   Source: \leansrc{Wikifunctions/Core.lean}{20}.
 \end{definition}
+
+\begin{remark}
+  \textbf{Why a single union type is needed.} The evaluator (\ref{def:core-eval}) is \emph{one}
+  function, \texttt{eval : Expr \(\to\) Option Val}, walking one expression tree whose parts
+  have different types. In \texttt{coprime} \(=\) \texttt{equals(gcd(a, b), 1)} the subterm
+  \texttt{gcd(a, b)} evaluates to a \emph{natural} but the whole \texttt{equals(\ldots)} to a
+  \emph{boolean}; the \texttt{if} leaf takes a boolean and two naturals in one argument list,
+  \texttt{[bool, nat, nat]}. A Lean function has exactly one return type and a list has one
+  element type --- so each must be a single type able to hold a nat \emph{or} a bool \emph{or}
+  a rat. That is exactly a tagged union: \texttt{Val}. (A shallow embedding avoids it: if you
+  only wanted these six as separate facts you would write each in native Lean types,
+  \texttt{Nat.gcd a b == 1}. \texttt{Val} is the price of modelling the \wf{Z14}K2 evaluator
+  \emph{once}, so composite bodies stay checkable data rather than hand-rewrites.)
+
+  \textbf{Why this mirrors Wikifunctions, not just our model.} Every Wikifunctions value is a
+  \wf{Z1} (``Object''), the universal type --- its actual type is a \emph{runtime tag}, the
+  \wf{Z1}K1 key of the record (\fnmodel{Z1/ZObjects}{Function model \S~Z1/ZObjects}: ``every
+  ZObject has a \wf{Z1}K1 giving its type''). A faithful model of a runtime-tagged value must
+  itself carry a tag, and in Lean a tagged union \emph{is} a value plus a tag; \texttt{Val}'s
+  three constructors are precisely the \wf{Z1}K1 tags \wf{Z13518}/\wf{Z40}/\wf{Z19677}. This is
+  also why a \emph{ZID} is not a \texttt{Val}: a ZID \emph{names} a function, so it lives in
+  \texttt{Expr.call} and the \texttt{Registry}, not in the value type; a \wf{Z9} reference is a
+  value only for higher-order functions (\divergence{D17}). The one abstraction \texttt{Val}
+  makes is that \texttt{Val.rat} normalises, so an unreduced \wf{Z19677} like \(2/4\) is
+  modelled up to fraction-equality (\divergence{D-info}).
+\end{remark}
 
 \begin{definition}[Composition AST]\label{def:core-expr}
   \uses{def:core-val}
