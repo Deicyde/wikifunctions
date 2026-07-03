@@ -30,23 +30,28 @@ The system is specified by a four-layer stack, cited throughout: the prose \href
 
 \begin{definition}[Value universe]\label{def:core-val}
   \lean{Wikifunctions.Val}\leanok
-  In WikiLambda \emph{every} value is a ZObject --- a key/value record whose
-  \texttt{Z1K1} names its type. The number 42 is
-  \texttt{\{Z1K1: Z13518, Z13518K1: "42"\}} (a record wrapping a digit-string), and
-  \texttt{true} is \texttt{\{Z1K1: Z40, Z40K1: Z41\}}. \texttt{Val} does \emph{not}
-  mirror that record structure; it models the \emph{denotation} --- the
-  mathematical value each record represents --- for the three carrier types these
-  composites use:
+  \emph{Not} an inventory of Wikifunctions' types. Wikifunctions has many basic
+  types this omits --- \wf{Z6} strings, \wf{Z9} references, \wf{Z881} typed lists,
+  \wf{Z20838} floats, and every other community type. \texttt{Val} is the set of
+  values the \emph{six modelled composites} pass as arguments and return, and it has
+  exactly three constructors because those six functions touch exactly three
+  carriers. It grows per modelled function, not per Wikifunctions type.
+
+  Every WikiLambda value is a ZObject (a key/value record whose \texttt{Z1K1} names
+  its type: the number 42 is \texttt{\{Z1K1: Z13518, Z13518K1: "42"\}}); \texttt{Val}
+  keeps only each record's \emph{denotation}:
   \begin{itemize}
-    \item \wf{Z13518} natural number (a \wf{Z6} digit-string) \(\mapsto\) \texttt{Val.nat} \((\mathbb{N})\);
+    \item \wf{Z13518} natural (a \wf{Z6} digit-string) \(\mapsto\) \texttt{Val.nat} \((\mathbb{N})\);
     \item \wf{Z40} boolean (\wf{Z41}/\wf{Z42}) \(\mapsto\) \texttt{Val.bool} (\texttt{Bool});
     \item \wf{Z19677} rational (a sign / numerator / denominator record) \(\mapsto\) \texttt{Val.rat} \((\mathbb{Q})\).
   \end{itemize}
-  This is sound because the leaf functions act on the value, never on the
-  record's keys; the one abstraction is that \texttt{Val.rat} normalises, so an
-  unreduced \wf{Z19677} such as \(2/4\) is modelled only up to fraction-equality
-  (\divergence{D-info}). The generic type \wf{Z4} --- the type \emph{of} types,
-  itself such a record --- is \emph{not} what \texttt{Val} models.
+  A \emph{ZID} (e.g.\ \texttt{"Z13612"}) is deliberately \emph{not} a \texttt{Val}: it
+  \emph{names} a function, and is modelled separately as the callee of \texttt{Expr.call}
+  and the key of the \texttt{Registry} (\texttt{abbrev ZID := String}), not as a computed
+  value. A \wf{Z9} reference becomes a value only for higher-order functions
+  (\divergence{D17}), which none of these six are. The sole representation abstraction
+  is that \texttt{Val.rat} normalises, so an unreduced \wf{Z19677} such as \(2/4\) is
+  modelled up to fraction-equality (\divergence{D-info}).
   Source: \leansrc{Wikifunctions/Core.lean}{20}.
 \end{definition}
 
