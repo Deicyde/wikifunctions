@@ -21,7 +21,7 @@ for m in re.finditer(r"\\lean\{([^}]*)\}", content):
 # index every declared identifier across the Lean sources
 decl_re = re.compile(
     r"^\s*(?:noncomputable\s+|protected\s+|private\s+)*"
-    r"(?:def|theorem|lemma|abbrev|inductive|structure|instance)\s+([A-Za-z_][A-Za-z0-9_'.]*)"
+    r"(?:def|theorem|lemma|abbrev|inductive|structure|instance)\s+([A-Za-z_][A-Za-z0-9_'.?!]*)"
 )
 declared = set()
 for lean in root.rglob("*.lean"):
