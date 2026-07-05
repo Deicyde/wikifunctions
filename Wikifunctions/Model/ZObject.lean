@@ -176,15 +176,20 @@ def keysNoDup : List Key → Bool
   | [] => true
   | k :: ks => !ks.contains k && keysNoDup ks
 
-/-- The `Z6`/String terminal shape: exactly `Z1K1 = "Z6"` then `Z6K1 = <string leaf>`. -/
-def isZ6Shape : List (Key × ZObject) → Bool
-  | [("Z1K1", str "Z6"), ("Z6K1", str _)] => true
-  | _ => false
+/-- The `Z6`/String terminal shape: exactly the two keys `Z1K1 = "Z6"` and `Z6K1 = <string
+    leaf>` — in *either order*. The spec (§Z6/String) mandates "exactly two keys, Z1K1 ... and
+    Z6K1", not their order, so we check the key set, not an ordered list. -/
+def isZ6Shape (kvs : List (Key × ZObject)) : Bool :=
+  kvs.length == 2 &&
+  (match (node kvs).get? "Z1K1" with | some (str "Z6") => true | _ => false) &&
+  (match (node kvs).get? "Z6K1" with | some (str _)    => true | _ => false)
 
-/-- The `Z9`/Reference terminal shape: exactly `Z1K1 = "Z9"` then `Z9K1 = <ZID leaf>`. -/
-def isZ9Shape : List (Key × ZObject) → Bool
-  | [("Z1K1", str "Z9"), ("Z9K1", str _)] => true
-  | _ => false
+/-- The `Z9`/Reference terminal shape: exactly the two keys `Z1K1 = "Z9"` and `Z9K1 = <ZID
+    leaf>`, in either order (§Z9/Reference: "exactly two keys, Z1K1 ... and Z9K1"). -/
+def isZ9Shape (kvs : List (Key × ZObject)) : Bool :=
+  kvs.length == 2 &&
+  (match (node kvs).get? "Z1K1" with | some (str "Z9") => true | _ => false) &&
+  (match (node kvs).get? "Z9K1" with | some (str _)    => true | _ => false)
 
 /- `wf z` — `z` is a well-formed normal-form *value* (§Z1/ZObjects). A bare `str` leaf is not
    a standalone value; a `node` must carry a `Z1K1` key with no duplicate keys, and be either
@@ -210,6 +215,8 @@ instance (z : ZObject) : Decidable z.WellFormed := by unfold WellFormed; infer_i
 example : wf natTwo = true := by decide
 example : wf (string "x") = true := by decide
 example : wf (reference "Z13701") = true := by decide
+-- ...and key ORDER doesn't matter for a terminal (the fix): Z6K1 before Z1K1 is still a Z6/String.
+example : wf (node [("Z6K1", str "x"), ("Z1K1", str "Z6")]) = true := by decide
 -- ...and the things the spec rejects are rejected:
 example : wf (str "bare") = false := by decide                       -- a bare leaf is not a value
 example : wf (node [("Z6K1", str "x")]) = false := by decide         -- no Z1K1
