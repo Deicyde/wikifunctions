@@ -130,6 +130,15 @@ def stringValue? (z : ZObject) : Option String :=
 def referenceId? (z : ZObject) : Option String :=
   if z.isReference then match z.get? "Z9K1" with | some (str s) => some s | _ => none else none
 
+/-- The ZID naming a ZObject's type, whether its `Z1K1` tag is a terminal leaf (`"Z6"`/`"Z9"`)
+    or a `Z9`/Reference to a `Z4`/Type (the non-terminal case). This is the discriminator the
+    generated per-type code checks. -/
+def typeId? (z : ZObject) : Option String :=
+  match z.type? with
+  | some (str s) => some s          -- terminal tag: a bare `"Z6"`/`"Z9"`
+  | some v => v.referenceId?        -- non-terminal: a `Z9` reference to the type
+  | none => none
+
 /-! ### Faithfulness check: the spec's own §Normal form example
 
 `{Z1K1: {Z1K1: Z9, Z9K1: Z10}, Z10K1: {Z1K1: Z6, Z6K1: "2"}}` — the natural number 2. (The
