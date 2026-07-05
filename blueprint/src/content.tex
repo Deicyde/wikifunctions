@@ -7,7 +7,7 @@
 
 \chapter*{Abstract}
 
-This blueprint documents a machine-checked Lean~4 formalization that models a fragment of the deployed Wikifunctions / WikiLambda system: the \wf{Z7}/\wf{Z18} composition language, an imperative-Python subset used by two live code implementations, and a 25-function spec corpus. Two headline theorems --- coprimality (\ref{thm:z13701}) and factorial (\ref{thm:z13667}) --- prove the deployed programs compute exactly their Mathlib oracles; six composite bodies (\ref{thm:comp-coprime}--\ref{thm:comp-perfect}) are proved node-exact against their live \wf{Z14}K2 JSON. Everything is proved with no \texttt{sorry}, on axioms \texttt{[propext, Classical.choice, Quot.sound]}. The proofs are exact \emph{given} one empirical trust anchor --- that the Lean transcription is the deployed artifact on the modelled fragment (Chapter~\ref{ch:modeling}) --- and every deliberate simplification is recorded as an \emph{(editorial)} abstraction (Table~\ref{tab:abstractions}) or a confirmed divergence (Table~\ref{tab:divergences}, D1--D18). A reviewer deciding whether to trust the model should start with Chapter~\ref{ch:modeling}.
+This blueprint documents a machine-checked Lean~4 formalization that models a fragment of the deployed Wikifunctions / WikiLambda system: the \wf{Z7}/\wf{Z18} composition language, an imperative-Python subset used by two live code implementations, and a 25-function spec corpus. Two headline theorems --- coprimality (\ref{thm:z13701}) and factorial (\ref{thm:z13667}) --- prove the deployed programs compute exactly their Mathlib oracles; six composite bodies (\ref{thm:comp-coprime}--\ref{thm:comp-perfect}) are proved node-exact against their live \wf{Z14}K2 JSON. Everything is proved with no \texttt{sorry}, on axioms \texttt{[propext, Classical.choice, Quot.sound]}. The proofs are exact \emph{given} one empirical trust anchor --- that the Lean transcription is the deployed artifact on the modelled fragment (Chapter~\ref{ch:modeling}) --- and every deliberate simplification is recorded as an \emph{(editorial)} abstraction (Table~\ref{tab:abstractions}) or a confirmed divergence (Table~\ref{tab:divergences}, D1--D18). A reviewer deciding whether to trust the model should start with Chapter~\ref{ch:modeling}. \textbf{A ground-up rewrite is now underway} (Chapter~\ref{ch:rebuild}): it models every value as a \wf{Z1}/ZObject directly from the spec, and will supersede the \texttt{Val}-based layer that the rest of this document records.
 
 \chapter*{How to read this blueprint}
 
@@ -85,6 +85,56 @@ CPython trust anchor & \emph{(editorial), \divergence{D11}.} Deployed Python run
 \end{tabular}
 \caption{Confirmed divergences, from \href{https://github.com/Deicyde/wikifunctions/blob/main/SPEC_AUDIT.md}{SPEC\_AUDIT.md} \S3. ``Model vs.\ live'' is the direction of departure; each \divergence{Dn} is analysed at the node that carries it. The success-path theorems are unaffected by the \div0 items (D3/D4), which are excluded by hypothesis or isolated input; the \emph{info}-level abstractions (\texttt{Option}-collapse, \(\mathbb{Q}\)-normalization) are cited in-text as \divergence{D-info}.}\label{tab:divergences}
 \end{table}
+
+\chapter{The rebuilt model: Z1/ZObjects}\label{ch:rebuild}
+
+\emph{A ground-up rewrite is underway.} The chapters that follow model values through a typed
+universe (\texttt{Val}); this new development instead starts where the spec starts --- every
+value \emph{is} a \wf{Z1}/ZObject --- and grows under \texttt{Wikifunctions/Model/}. It
+supersedes the \texttt{Val}-based layer incrementally; those chapters remain the current
+machine-checked content until each is ported.
+
+\begin{definition}[ZObject]\label{def:rb-zobject}
+  \lean{Wikifunctions.Model.ZObject}\leanok
+  Derived verbatim from \fnmodel{Z1/ZObjects}{Function model \S~Z1/ZObjects} (``A ZObject
+  consists of a list of Key/value pairs \ldots \wf{Z6}/String and \wf{Z9}/Reference are terminal
+  values; they don't expand further'') and \fnmodel{Normal_form}{\S~Normal form} (``a tree where
+  all leaves are either \wf{Z6}/String or \wf{Z9}/Reference''): a \texttt{ZObject} is either a
+  terminal \texttt{str} leaf or a \texttt{node} --- an ordered list of key/value pairs. Two
+  constructors; everything else (\wf{Z4}, \wf{Z8}, \wf{Z7}, \wf{Z881}) is a shape of
+  \texttt{node}. Source: \leansrc{Wikifunctions/Model/ZObject.lean}{49}.
+\end{definition}
+
+\begin{definition}[Accessors and terminals]\label{def:rb-accessors}
+  \uses{def:rb-zobject}
+  \lean{Wikifunctions.Model.ZObject.type?}\leanok
+  Key lookup (\texttt{get?}), the type key (\texttt{type?} \(=\) the \wf{Z1}K1 value; §Z1/ZObjects:
+  ``every ZObject must have a key Z1K1/type''), and the two terminals as smart constructors:
+  \texttt{string} \(= \{\)\wf{Z1}K1{:}\wf{Z6}, \wf{Z6}K1{:}\(s\}\) and \texttt{reference} \(=
+  \{\)\wf{Z1}K1{:}\wf{Z9}, \wf{Z9}K1{:}\(zid\}\), with recognizers.
+  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{106}.
+\end{definition}
+
+\begin{lemma}[Faithful to the spec's normal-form example]\label{lem:rb-nattwo}
+  \uses{def:rb-zobject}
+  \lean{Wikifunctions.Model.ZObject.natTwo}\leanok
+  \texttt{natTwo} reproduces the \fnmodel{Normal_form}{§Normal-form} example \emph{definitionally}
+  (\texttt{rfl}): the natural number 2 is \texttt{\{Z1K1:\{Z1K1:Z9,\,Z9K1:Z10\},
+  Z10K1:\{Z1K1:Z6,\,Z6K1:"2"\}\}}. This is the load-bearing faithfulness check for the rebuilt
+  substrate. Source: \leansrc{Wikifunctions/Model/ZObject.lean}{140}.
+\end{lemma}
+
+\begin{definition}[Well-formedness]\label{def:rb-wf}
+  \uses{def:rb-zobject}
+  \lean{Wikifunctions.Model.ZObject.WellFormed}\leanok
+  The inductive is deliberately permissive --- as the dynamically-typed deployed system is,
+  where validators can be skipped --- so validity is a \emph{separate, decidable} predicate
+  \texttt{wf}: a \wf{Z1}K1 key, no duplicate keys, and leaves that are \wf{Z6}/\wf{Z9} terminals
+  (\fnmodel{Z1/ZObjects}{§Z1/ZObjects}: ``every ZObject must have a key Z1K1/type \ldots every Key
+  can only appear once''). \texttt{natTwo} and the terminals check well-formed; a bare leaf,
+  a node without \wf{Z1}K1, and a duplicate-key node are rejected.
+  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{196}.
+\end{definition}
 
 \chapter{The object model and evaluator core}
 
