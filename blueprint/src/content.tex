@@ -11,16 +11,16 @@ This blueprint documents a machine-checked Lean~4 formalization that models a fr
 
 \chapter*{How to read this blueprint}
 
-\paragraph{Reading order (roadmap).} Chapter~\ref{ch:modeling} (\emph{How this models Wikifunctions}) is the trust argument: the four authority layers, the modelling method, and the abstraction ledger --- read it first. The remaining chapters are the formalization itself, in dependency order: \emph{The object model and evaluator core} (the registry-parameterized \wf{Z7}/\wf{Z18} evaluator), \emph{The imperative-Python layer} (the deep-embedded interpreter and the two proved programs), \emph{The composite layer} (six \wf{Z14}K2 bodies proved against Mathlib oracles), \emph{The spec corpus} (the 25-function catalog), and an \emph{Appendix} enumerating the value primitives.
+\paragraph{Reading order (roadmap).} Chapter~\ref{ch:modeling} (\emph{How this models Wikifunctions}) is the trust argument: the four authority layers, the modelling method, and the abstraction ledger --- read it first. The remaining chapters are the formalization itself, in dependency order: \emph{The imperative-Python layer} (the deep-embedded interpreter and the two proved programs), \emph{The composite layer} (six \wf{Z14}K2 bodies proved against Mathlib oracles), \emph{The spec corpus} (the 25-function catalog), and an \emph{Appendix} enumerating the value primitives.
 
 \paragraph{Convention: spec vs.\ (editorial).} Two labels recur throughout and carry weight. A claim is grounded in an \textbf{authority} --- the function-schemata (structural validity), the prose Function model, the live ZObjects, or the deployed orchestrator/evaluator (Chapter~\ref{ch:modeling}) --- and cites it. A claim the four authorities leave open (a menu of value types, a denotation in place of a record, \texttt{Option} for the \wf{Z22}/\wf{Z5} envelope) is a modelling choice, marked \emph{(editorial)} and justified at the point of use; it is never asserted as a spec fact. A \divergence{Dn} tag marks a place where the model provably differs from live behaviour, each catalogued in Table~\ref{tab:divergences}.
 
 This blueprint maps the Lean~4 formalization in the \href{https://github.com/Deicyde/wikifunctions}{\texttt{Deicyde/wikifunctions}} repository onto the deployed WikiLambda / Wikifunctions system it models. Every node carries:
 
 \begin{itemize}
-  \item a \textbf{Lean} link (\leansrc{Wikifunctions/Core.lean}{43}-style) to the exact source line, and the declaration name shown by the \textsf{L$\exists\forall$N} badge;
+  \item a \textbf{Lean} link (\leansrc{Wikifunctions/Model/ZObject.lean}{49}-style) to the exact source line, and the declaration name shown by the \textsf{L$\exists\forall$N} badge;
   \item a \textbf{WikiLambda} link (e.g.\ \wf{Z13701}) to the live object on \href{https://www.wikifunctions.org}{wikifunctions.org} that the Lean models;
-  \item and, wherever a node makes a normative claim about \emph{types} or \emph{behaviour}, a \textbf{formal-spec} citation, split by what each artifact adjudicates: the machine-enforced \schema{Z8}-style function-schemata pin only \emph{structural} validity (\href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata/-/blob/main/README.md}{a shared set of JSON schemata giving a single source of truth for what counts as a structurally valid ZObject}), while the relevant \fnmodel{Z8/Functions}{Function model} prose section grounds the \emph{behavioural} claim --- so each claim rests on the spec, not on assertion. Where we sort types into a \emph{value}-versus-\emph{structural} menu, the schemata are silent, so that split is our \emph{(editorial)} classification, not a spec fact. (For example, the Value universe, Definition~\ref{def:core-val}, has its type closure pinned to each function's \wf{Z8} signature and machine-checked by \repo{blueprint/check\_value\_universe.py}{a script}.)
+  \item and, wherever a node makes a normative claim about \emph{types} or \emph{behaviour}, a \textbf{formal-spec} citation, split by what each artifact adjudicates: the machine-enforced \schema{Z8}-style function-schemata pin only \emph{structural} validity (\href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata/-/blob/main/README.md}{a shared set of JSON schemata giving a single source of truth for what counts as a structurally valid ZObject}), while the relevant \fnmodel{Z8/Functions}{Function model} prose section grounds the \emph{behavioural} claim --- so each claim rests on the spec, not on assertion. Where we sort types into a \emph{value}-versus-\emph{structural} menu, the schemata are silent, so that split is our \emph{(editorial)} classification, not a spec fact. (For example, the Value universe, Definition~\ref{def:eval-val}, has its type closure pinned to each function's \wf{Z8} signature and machine-checked by \repo{blueprint/check\_value\_universe.py}{a script}.)
 \end{itemize}
 
 In the dependency graph, a node is filled green when its Lean statement \emph{and} proof are complete; edges are \texttt{\textbackslash uses} dependencies. Everything here is proved with no \texttt{sorry}; the two headline theorems depend only on \texttt{[propext, Classical.choice, Quot.sound]}. They characterize the deep-embedded interpreter's \emph{language semantics} (the \fnmodel{Evaluation_order}{Function model \S~Evaluation order} fixes the result because ``all Z8/Functions are not allowed to have side-effects''), not the deployed runtime's \emph{execution budget}: the platform's fuel/deadline limits are out-of-band of the proved semantics (\divergence{D13}).
@@ -33,7 +33,7 @@ This chapter lets a Lean-literate reviewer judge the model \emph{as a model of W
 
 \paragraph{Four layers of authority.} Every normative claim in this blueprint cites the layer that actually decides it. (1)~The \emph{function-schemata} (\schema{Z1}, \schema{Z7}, \schema{Z18}, \schema{Z14}, \ldots) fix the JSON \emph{representation} --- what keys a ZObject must have and their shapes; they say nothing about behaviour. (2)~The prose \fnmodel{Z1/ZObjects}{Function model} fixes the \emph{concepts} --- e.g.\ ``every ZObject must have a key \wf{Z1}K1/type with a value that evaluates to a \wf{Z4}/Type'' (\fnmodel{Z1/ZObjects}{\S~Z1/ZObjects}), and that a \wf{Z14}K2 \emph{composition} is ``a \wf{Z7}/Function call'' serving as the implementation body (\fnmodel{Z14/Implementations}{\S~Z14/Implementations}). (3)~The \emph{live ZObjects} (via \texttt{wikilambda\_fetch}) are the definitions \emph{as deployed} --- richer than the prose, and the ground truth for the community types the model touches (\wf{Z13518}, \wf{Z19677}). (4)~The \emph{deployed orchestrator/evaluator} is behavioural ground truth where the spec is silent (eager application; the \wf{Z22}/\wf{Z5} error envelope; the RustPython runtime). A claim is only as strong as the layer under it: structural claims cite (1), semantic claims cite (2)--(4), and anything none of them settles is flagged \emph{(editorial)}.
 
-\paragraph{The core method: mirror dynamic typing, model the evaluator as data.} Wikifunctions is dynamically typed --- every value is a \wf{Z1} (``Object'') whose actual type is the \emph{runtime tag} \wf{Z1}K1 (spec: \fnmodel{Z1/ZObjects}{\S~Z1/ZObjects}). The Lean model mirrors this with a tagged union \texttt{Val} (Def.~\ref{def:core-val}): its constructors \emph{are} the \wf{Z1}K1 tags (\wf{Z13518}/\wf{Z40}/\wf{Z19677}), and each carries the \emph{denotation} a live ZObject stands for, not the record (the number \(42\), not \texttt{\{Z1K1:Z13518,\,Z13518K1:"42"\}}). Because the model is untyped-value-shaped rather than a family of native Lean types, one evaluator \texttt{eval : Expr \(\to\) Option Val} (Def.~\ref{def:core-eval}) can walk a heterogeneous \wf{Z14}K2 body once: the \wf{Z7} call / \wf{Z18} argument-reference fragment is reified as the \texttt{Expr} AST (Def.~\ref{def:core-expr}), so composite bodies stay \emph{data} checked node-for-node against the live JSON --- not hand-rewrites that could silently drift. That is the faithfulness argument for the composite layer: the abstraction is only in the \emph{leaves} (Table~\ref{tab:abstractions}), never in the composition structure. (Why a single tagged union is the \emph{forced} shape here, not merely a convenient one, is argued at the Value-universe node, Def.~\ref{def:core-val} and its remark.)
+\paragraph{The core method: mirror dynamic typing, model the evaluator as data.} Wikifunctions is dynamically typed --- every value is a \wf{Z1} (``Object'') whose actual type is the \emph{runtime tag} \wf{Z1}K1 (spec: \fnmodel{Z1/ZObjects}{\S~Z1/ZObjects}). The Lean model mirrors this with a tagged union \texttt{Val} (Def.~\ref{def:eval-val}): its constructors \emph{are} the \wf{Z1}K1 tags (\wf{Z13518}/\wf{Z40}/\wf{Z19677}), and each carries the \emph{denotation} a live ZObject stands for, not the record (the number \(42\), not \texttt{\{Z1K1:Z13518,\,Z13518K1:"42"\}}). Because the model is untyped-value-shaped rather than a family of native Lean types, one evaluator \texttt{eval : Expr \(\to\) Option Val} (Def.~\ref{def:eval-eval}) can walk a heterogeneous \wf{Z14}K2 body once: the \wf{Z7} call / \wf{Z18} argument-reference fragment is reified as the \texttt{Expr} AST (Def.~\ref{def:eval-eval}), so composite bodies stay \emph{data} checked node-for-node against the live JSON --- not hand-rewrites that could silently drift. That is the faithfulness argument for the composite layer: the abstraction is only in the \emph{leaves} (Table~\ref{tab:abstractions}), never in the composition structure. (Why a single tagged union is the \emph{forced} shape here, not merely a convenient one, is argued at the Value-universe node, Def.~\ref{def:eval-val} and its remark.)
 
 \paragraph{The deliberate abstractions, and why each is sound.} Faithfulness here means \emph{documented} abstraction: each simplification below is stated, and either provably invisible on the modelled fragment or scoped by an explicit theorem hypothesis. The distinction between \emph{spec-forced} and \emph{(editorial)} is load-bearing --- the schemata pin representation, so choosing a denotation over a record, or \texttt{Option} over the \wf{Z22}/\wf{Z5} envelope, is our choice, sound because it is behaviour-preserving on success and collapses only channels the modelled theorems never observe.
 
@@ -136,81 +136,17 @@ machine-checked content until each is ported.
   Source: \leansrc{Wikifunctions/Model/ZObject.lean}{196}.
 \end{definition}
 
-\chapter{The object model and evaluator core}
-
-\texttt{Core.lean} is an open, registry-parameterized model of the Wikifunctions composition language: the \wf{Z7} function-call / \wf{Z18} argument-reference fragment, evaluated against a wiki of \wf{Z8} functions.
-
-\begin{definition}[ZID]\label{def:core-zid}
-  \lean{Wikifunctions.ZID}\leanok
-  A Wikifunctions object id is a string. Models \wf{Z9} references (schema \texttt{Z9.yaml}: \texttt{pattern \^{}Z[1-9]$\backslash$d*\$}).
-  Source: \leansrc{Wikifunctions/Core.lean}{16}.
-\end{definition}
-
-\begin{definition}[Value universe]\label{def:core-val}
-  \lean{Wikifunctions.Val}\leanok
-  The single type of values the composition evaluator (\ref{def:core-eval}) computes with:
-  a \emph{tagged union} with three constructors --- \texttt{Val.nat} \((\mathbb{N})\),
-  \texttt{Val.bool} (\texttt{Bool}), \texttt{Val.rat} \((\mathbb{Q})\) --- one per type the six
-  modelled composites pass around: \wf{Z40} booleans (a CANONICAL built-in, \schema{Z40}) and the community \wf{Z4}/Types \wf{Z13518} naturals and \wf{Z19677} rationals (both absent from \texttt{CANONICAL/}). We group these three as a \emph{small, fixed menu} of value types \emph{(editorial)} --- the schemata do not adjudicate a value-versus-structural split (Appendix~\ref{app:primitives}); \texttt{Val} gains a constructor whenever a
-  future composite needs another (a string function would want the built-in \wf{Z6} string --- \fnmodel{Z1/ZObjects}{a \wf{Z6} has keys Z1K1=``Z6'' and Z6K1 an arbitrary string}, \schema{Z6} --- an integer one the community type \wf{Z16683}, and so on). Each constructor holds the value a live ZObject denotes rather than its ZObject record \emph{(editorial)} --- in \fnmodel{Normal_form}{normal form} the number \(42\) is the explicit \texttt{\{Z1K1: Z13518, Z13518K1: "42"\}}, whereas \texttt{Val.nat 42} keeps just the \(42\) while re-encoding the Z1K1=\wf{Z13518} tag in the constructor itself.
-  \textbf{Complete:} across all six composites and their eleven leaves, every argument and
-  return type is one of these three, machine-verified against the live \wf{Z8} signatures
-  (\fnmodel{Z8/Functions}{Function model \S~Z8}, schema \schema{Z8}) by
-  \repo{blueprint/check\_value\_universe.py}{\texttt{check\_value\_universe.py}}.
-  Source: \leansrc{Wikifunctions/Core.lean}{20}.
-\end{definition}
-
-\begin{remark}
-  \textbf{Why a single union type is needed.} The evaluator (\ref{def:core-eval}) is \emph{one}
-  function, \texttt{eval : Expr \(\to\) Option Val}, walking one expression tree whose parts
-  have different types. In \texttt{coprime} \(=\) \texttt{equals(gcd(a, b), 1)} the subterm
-  \texttt{gcd(a, b)} evaluates to a \emph{natural} but the whole \texttt{equals(\ldots)} to a
-  \emph{boolean}; the \texttt{if} leaf takes a boolean and two naturals in one argument list,
-  \texttt{[bool, nat, nat]}. A Lean function has exactly one return type and a list has one
-  element type --- so each must be a single type able to hold a nat \emph{or} a bool \emph{or}
-  a rat. That is exactly a tagged union: \texttt{Val}. (A shallow embedding avoids it: stating these six as separate facts in native Lean types,
-  \texttt{Nat.gcd a b == 1}, needs no union. \texttt{Val} is the price of modelling the \wf{Z14}K2 evaluator
-  \emph{once}, so composite bodies stay checkable data rather than hand-rewrites.)
-
-  \textbf{Why this mirrors Wikifunctions, not just our model.} Every Wikifunctions value is a
-  \wf{Z1} (``Object''), the universal type --- its actual type is a \emph{runtime tag}, the
-  \wf{Z1}K1 key of the record (\fnmodel{Z1/ZObjects}{Function model \S~Z1/ZObjects}: ``every
-  ZObject has a \wf{Z1}K1 giving its type''). A faithful model of a runtime-tagged value must
-  itself carry a tag, and in Lean a tagged union \emph{is} a value plus a tag; \texttt{Val}'s
-  three constructors are precisely the \wf{Z1}K1 tags \wf{Z13518}/\wf{Z40}/\wf{Z19677}. This is
-  also why a \emph{ZID} is not a \texttt{Val}: a ZID \emph{names} a function, so it lives in
-  \texttt{Expr.call} and the \texttt{Registry}, not in the value type; a \wf{Z9} reference is a
-  value only for higher-order functions (\divergence{D17}). The one abstraction \texttt{Val}
-  makes is that \texttt{Val.rat} normalises, so an unreduced \wf{Z19677} like \(2/4\) is
-  modelled up to fraction-equality (\divergence{D-info}).
-\end{remark}
-
-\begin{definition}[Composition AST]\label{def:core-expr}
-  \uses{def:core-val}
-  \lean{Wikifunctions.Expr}\leanok
-  Three node shapes: \texttt{arg} (a \wf{Z18} argument reference), \texttt{lit} (an inline literal value), and \texttt{call} (a \wf{Z7} function call naming its callee by \wf{Z9} reference). This is the shape of a \wf{Z14}K2 composite body on the modelled fragment (\divergence{D16}: real \wf{Z18} references are by key-id string, modelled here positionally; \divergence{D17}: general \wf{Z14}K2 bodies admit more forms).
-  Source: \leansrc{Wikifunctions/Core.lean}{28}.
-\end{definition}
-
-\begin{definition}[Denotation]\label{def:core-denotation}
-  \uses{def:core-val}
-  \lean{Wikifunctions.Denotation}\leanok
-  A function's extensional meaning: \texttt{List Val $\to$ Option Val}, total, with \texttt{none} for a type error or arity mismatch. Models \wf{Z8} extensionally (\wf{Z8}K1 arguments $\to$ \wf{Z8}K2 return), collapsing the \wf{Z22}/\wf{Z5} error envelope to \texttt{Option} (\divergence{D-info}: documented abstraction). This is faithful to the success/failure disjunction the spec fixes --- a \fnmodel{Z22/Evaluation_result}{Z7/Function call always returns a Z22/Evaluation result} that is either a value or, on an unrecoverable failure, a \fnmodel{Z5/Errors}{Z5/Error referencing an error type in Z5K1} --- with \texttt{some}/\texttt{none} abstracting away the Z22 metadata and the Z5K1 error type.
-  Source: \leansrc{Wikifunctions/Core.lean}{34}.
-\end{definition}
-
-\begin{definition}[Registry]\label{def:core-registry}
-  \uses{def:core-denotation, def:core-zid}
-  \lean{Wikifunctions.Registry}\leanok
-  Resolves a ZID to its denotation --- the global function context, modelling the wiki of \wf{Z2} persistent objects --- \fnmodel{Persistent_and_transient}{every top-level ZObject stored on a wiki page is a Z2/Persistent object with a Z2K1/id (a Z6/String ZID equal to the page name)} --- and a missing id yields \texttt{none} (live, the id is not found: \wf{Z504} ``ZID not found'' / \wf{Z550} ``Unknown reference'').
-  Source: \leansrc{Wikifunctions/Core.lean}{38}.
-\end{definition}
-
-\begin{definition}[Evaluator]\label{def:core-eval}
-  \uses{def:core-expr, def:core-registry, def:core-denotation}
-  \lean{Wikifunctions.eval, Wikifunctions.evalArgs}\leanok
-  A total, mutually-structural evaluator: \texttt{arg} indexes the environment, \texttt{lit} returns its value, \texttt{call} resolves the callee through the registry and applies it to eagerly-evaluated arguments. Eager application is our \emph{(editorial)} evaluation strategy on the modelled fragment: the \fnmodel{Evaluation_order}{Function model \S~Evaluation order} leaves order ``up to the evaluator'' and, because ``all Z8/Functions are not allowed to have side-effects, this will always lead to the same result'', so the same result is reached under any terminating order. The spec's own non-terminating case turns on the one lazy builtin \wf{Z802}/if, which is out of scope here; the spec ``in general recommend[s]'' a lazy strategy.
-  Source: \leansrc{Wikifunctions/Core.lean}{43}.
+\begin{definition}[The generated type layer]\label{def:rb-types}
+  \uses{def:rb-zobject}
+  The built-in types are \emph{not} hand-written. \repo{codegen/gen\_type.py}{\texttt{codegen/gen\_type.py}}
+  reads each type's authoritative definition --- the function-schemata \schema{Z4}-style YAML for
+  built-ins, or the live \wf{Z4} (\texttt{wikilambda\_fetch}) for community types --- and emits, on
+  the \texttt{ZObject} substrate, a smart constructor, per-key accessors, an \texttt{isZxx}
+  recognizer, and a \texttt{by decide} self-check that the constructor and recognizer agree. All
+  \textbf{29 built-in types} (\repo{Wikifunctions/Model/Types}{\texttt{Model/Types/}}) are generated
+  this way; only \wf{Z1}/ZObject and the \wf{Z6}/\wf{Z9} terminals it bottoms out in are
+  hand-written. This is the spec-to-the-letter ideal: the schema \emph{is} the spec, so generating
+  from it removes per-type interpretation.
 \end{definition}
 
 \chapter{The imperative-Python layer}
@@ -332,7 +268,7 @@ A deep embedding of the \wf{Z14}K2 \emph{composition} language with a total eval
 
 \begin{definition}[Composite value universe]\label{def:eval-val}
   \lean{Wikifunctions.Val}\leanok
-  The same three-type denotation as the core value universe (\ref{def:core-val})
+  The same three-type denotation as the core value universe (\ref{def:eval-val})
   --- \wf{Z13518} naturals, \wf{Z40} booleans, \wf{Z19677} rationals, each modelled
   by the value it represents rather than by its \fnmodel{Z1/ZObjects}{ZObject record of Z1K1/type plus key/value pairs} \emph{(editorial:} the value-versus-record collapse is a modelling choice, not a schema fact\emph{)}. As in the core universe, \texttt{Val.rat} identifies an unreduced \wf{Z19677} (e.g.\ \(2/4\)) with its reduced form (\divergence{D-info}). This is
   \texttt{WikifunctionsEval.lean}'s own \texttt{Val}, a copy distinct from the core
