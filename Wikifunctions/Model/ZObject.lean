@@ -153,5 +153,58 @@ example : (reference "Z13701").referenceId? = some "Z13701" := by decide
 example : natTwo.keys = ["Z1K1", "Z10K1"] := rfl
 example : string "a" ≠ string "b" := by decide          -- the hand-written `DecidableEq` computes
 
+/-! ### Well-formedness (normal form)
+
+The inductive `ZObject` is deliberately permissive — it admits trees the spec would reject (a
+bare leaf standing alone, a node with no `Z1K1`, duplicate keys) — because the deployed system
+is dynamically typed and its validators can be skipped. Validity is therefore a *separate,
+decidable predicate*, matching the spec's validator posture. Per §Z1/ZObjects a well-formed
+normal-form ZObject must "have a key Z1K1/type", "every Key can only appear once", and its
+leaves must be the two terminals `Z6`/`Z9`. -/
+
+/-- Boolean "no duplicate keys" (kept Mathlib-free). -/
+def keysNoDup : List Key → Bool
+  | [] => true
+  | k :: ks => !ks.contains k && keysNoDup ks
+
+/-- The `Z6`/String terminal shape: exactly `Z1K1 = "Z6"` then `Z6K1 = <string leaf>`. -/
+def isZ6Shape : List (Key × ZObject) → Bool
+  | [("Z1K1", str "Z6"), ("Z6K1", str _)] => true
+  | _ => false
+
+/-- The `Z9`/Reference terminal shape: exactly `Z1K1 = "Z9"` then `Z9K1 = <ZID leaf>`. -/
+def isZ9Shape : List (Key × ZObject) → Bool
+  | [("Z1K1", str "Z9"), ("Z9K1", str _)] => true
+  | _ => false
+
+/- `wf z` — `z` is a well-formed normal-form *value* (§Z1/ZObjects). A bare `str` leaf is not
+   a standalone value; a `node` must carry a `Z1K1` key with no duplicate keys, and be either
+   a `Z6`/`Z9` terminal (leaves) or have every value itself well-formed. Mutual with
+   `wfEntries` because the recursion runs under `List (Key × ·)`. -/
+mutual
+  def wf : ZObject → Bool
+    | str _ => false
+    | node kvs =>
+        (kvs.any (·.1 == "Z1K1")) && keysNoDup (kvs.map (·.1)) &&
+        (isZ6Shape kvs || isZ9Shape kvs || wfEntries kvs)
+  def wfEntries : List (Key × ZObject) → Bool
+    | [] => true
+    | (_, v) :: rest => wf v && wfEntries rest
+end
+
+/-- A ZObject is well-formed. -/
+def WellFormed (z : ZObject) : Prop := wf z = true
+
+instance (z : ZObject) : Decidable z.WellFormed := by unfold WellFormed; infer_instance
+
+-- The spec's normal-form number 2 is well-formed; so are the terminals.
+example : wf natTwo = true := by decide
+example : wf (string "x") = true := by decide
+example : wf (reference "Z13701") = true := by decide
+-- ...and the things the spec rejects are rejected:
+example : wf (str "bare") = false := by decide                       -- a bare leaf is not a value
+example : wf (node [("Z6K1", str "x")]) = false := by decide         -- no Z1K1
+example : wf (node [("Z1K1", reference "Z6"), ("Z1K1", str "b")]) = false := by decide  -- duplicate key
+
 end ZObject
 end Wikifunctions.Model
