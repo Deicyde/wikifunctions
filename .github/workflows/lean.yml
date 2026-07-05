@@ -1,20 +1,14 @@
 name: Lean build
 
-# Builds the full Mathlib-dependent project against the pinned mathlib commit:
-# the Wikifunctions library (Core + the Z13701/Z13667 proofs), the diffdriver
-# executable, and the two standalone corpus files that are not part of the
-# default lake target (WikifunctionsSpecs.lean, WikifunctionsEval.lean, each
-# checked with `lake env lean`). Mathlib oleans come from `lake exe cache get`,
-# so nothing in mathlib is compiled here.
+# Builds the ground-up model (Wikifunctions/Model/): the hand-written ZObject
+# substrate and the generated Model.Types.* modules. Dependency-free (no Mathlib),
+# so this is just elan + `lake build`.
 
 on:
   push:
     branches: [main]
     paths:
       - 'Wikifunctions/**'
-      - 'WikifunctionsSpecs.lean'
-      - 'WikifunctionsEval.lean'
-      - 'DiffDriver.lean'
       - 'lakefile.toml'
       - 'lean-toolchain'
       - 'lake-manifest.json'
@@ -22,9 +16,6 @@ on:
   pull_request:
     paths:
       - 'Wikifunctions/**'
-      - 'WikifunctionsSpecs.lean'
-      - 'WikifunctionsEval.lean'
-      - 'DiffDriver.lean'
       - 'lakefile.toml'
       - 'lean-toolchain'
       - 'lake-manifest.json'
@@ -38,30 +29,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Free disk space for the mathlib cache
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.0
-        with:
-          tool-cache: true
-          large-packages: false
-          docker-images: false
-          swap-storage: false
-
       - uses: actions/checkout@v4
 
-      - name: Set up Lean, fetch mathlib cache, and build the library
-        uses: leanprover/lean-action@v1
-        with:
-          build: true
-          lint: false
-          test: false
-          use-mathlib-cache: true
-
-      - name: Build the diffdriver executable
-        run: lake build diffdriver
-
-      - name: Check the standalone corpus files
-        # Not part of the default `Wikifunctions` target (they live at the repo
-        # root, outside the `Wikifunctions.+` module glob).
+      - name: Install elan (Lean toolchain manager)
         run: |
-          lake env lean WikifunctionsSpecs.lean
-          lake env lean WikifunctionsEval.lean
+          curl -sSfL https://elan.lean-lang.org/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Lean toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ hashFiles('lean-toolchain') }}
+
+      - name: Build the model
+        run: lake build
