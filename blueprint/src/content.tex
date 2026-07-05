@@ -11,11 +11,11 @@ system, built \emph{ground-up from the spec}. Its organising principle: \textbf{
 than hand-written. The model lives under \repo{Wikifunctions/Model}{\texttt{Wikifunctions/Model/}}
 and is Mathlib-free.
 
-Only two things are hand-written --- the \wf{Z1}/ZObject inductive and the \wf{Z6}/\wf{Z9}
-terminals it bottoms out in (Chapter~\ref{ch:zobject}). Every other built-in type is emitted by a
-compiler from its definition (Chapter~\ref{ch:types}). Each node links to its exact Lean source
-and to the Function-model section or function-schemata file it is derived from; no structural or
-behavioural claim is made without that spec citation.
+Only one thing is hand-written --- the \wf{Z1}/ZObject inductive, whose two terminal constructors
+\emph{are} the \wf{Z6}/String and \wf{Z9}/Reference (Chapter~\ref{ch:zobject}). Every other
+built-in type is emitted by a compiler from its definition (Chapter~\ref{ch:types}). Each node
+links to its exact Lean source and to the Function-model section or function-schemata file it is
+derived from; no structural or behavioural claim is made without that spec citation.
 
 \paragraph{The authorities cited.} The prose
 \href{https://www.wikifunctions.org/wiki/Wikifunctions:Function_model}{Function model} (concepts),
@@ -28,48 +28,57 @@ marked \emph{(editorial)}.
 \chapter{Z1/ZObjects --- the hand-written substrate}\label{ch:zobject}
 
 The whole model rests on one inductive type and a few accessors, transcribed directly from the
-spec's definition of a ZObject and its normal form.
+spec's definition of a ZObject and its canonical form.
 
 \begin{definition}[ZObject]\label{def:zobject}
   \lean{Wikifunctions.Model.ZObject}\leanok
   Derived verbatim from \fnmodel{Z1/ZObjects}{Function model \S~Z1/ZObjects} (``A ZObject consists
   of a list of Key/value pairs \ldots \wf{Z6}/String and \wf{Z9}/Reference are terminal values;
-  they don't expand further'') and \fnmodel{Normal_form}{\S~Normal form} (``a tree where all
-  leaves are either \wf{Z6}/String or \wf{Z9}/Reference''): a \texttt{ZObject} is either a terminal
-  \texttt{str} leaf or a \texttt{node} --- an ordered list of key/value pairs. Two constructors;
-  everything else (\wf{Z4}, \wf{Z8}, \wf{Z7}, \wf{Z881}) is a shape of \texttt{node}.
-  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{49}.
+  they don't expand further'') in the spec's \fnmodel{Canonical_form}{\S~Canonical form}, where a
+  \wf{Z6}/String collapses to its bare string and a \wf{Z9}/Reference to its bare ZID: a
+  \texttt{ZObject} is a terminal \texttt{str} (a \wf{Z6}/String), a terminal \texttt{ref} (a
+  \wf{Z9}/Reference), or a \texttt{node} --- an ordered list of key/value pairs. Three
+  constructors; everything else (\wf{Z4}, \wf{Z8}, \wf{Z7}, \wf{Z881}) is a shape of
+  \texttt{node}. Keeping \texttt{ref} --- the thing an evaluator \emph{resolves} --- a
+  distinguished constructor is the point of the canonical encoding. Source:
+  \leansrc{Wikifunctions/Model/ZObject.lean}{36}.
 \end{definition}
 
 \begin{definition}[Accessors and terminals]\label{def:accessors}
   \uses{def:zobject}
   \lean{Wikifunctions.Model.ZObject.type?}\leanok
-  Key lookup (\texttt{get?}), the type key (\texttt{type?} \(=\) the \wf{Z1}K1 value; §Z1/ZObjects:
-  ``every ZObject must have a key Z1K1/type''), and the two terminals as smart constructors:
-  \texttt{string} \(= \{\)\wf{Z1}K1{:}\wf{Z6}, \wf{Z6}K1{:}\(s\}\) and \texttt{reference} \(=
-  \{\)\wf{Z1}K1{:}\wf{Z9}, \wf{Z9}K1{:}\(zid\}\), with recognizers.
-  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{106}.
+  Key lookup (\texttt{get?}); the type ZID (\texttt{typeId?}, which reads \wf{Z6} off a
+  \texttt{str}, \wf{Z9} off a \texttt{ref}, and off a \texttt{node} the ZID its \wf{Z1}K1
+  reference names; §Z1/ZObjects: ``every ZObject must have a key Z1K1/type''); and terminal
+  recognizers (\texttt{isString}, \texttt{stringValue?}, \texttt{isReference},
+  \texttt{referenceId?}) over the atomic \texttt{str}/\texttt{ref} constructors.
+  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{84}.
 \end{definition}
 
-\begin{lemma}[Faithful to the spec's normal-form example]\label{lem:nattwo}
+\begin{lemma}[Faithful to the spec's number 2]\label{lem:nattwo}
   \uses{def:zobject}
   \lean{Wikifunctions.Model.ZObject.natTwo}\leanok
-  \texttt{natTwo} reproduces the \fnmodel{Normal_form}{§Normal-form} example \emph{definitionally}
-  (\texttt{rfl}): the natural number 2 is \texttt{\{Z1K1:\{Z1K1:Z9,\,Z9K1:Z10\},
-  Z10K1:\{Z1K1:Z6,\,Z6K1:"2"\}\}}. This is the load-bearing faithfulness check for the substrate.
-  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{149}.
+  The spec's \fnmodel{Normal_form}{§Normal-form} example writes the number 2 as
+  \texttt{\{Z1K1:\{Z1K1:Z9,\,Z9K1:Z10\}, Z10K1:\{Z1K1:Z6,\,Z6K1:"2"\}\}}; its
+  \fnmodel{Canonical_form}{§Canonical form} collapses the terminals to
+  \texttt{\{Z1K1:Z10,\,Z10K1:"2"\}} --- the \texttt{Z10} a reference, the \texttt{"2"} a string.
+  That is exactly \texttt{natTwo}, and \texttt{rfl} checks its \wf{Z1}K1 reads \texttt{ref\,Z10},
+  its \wf{Z10}K1 reads \texttt{str\,"2"}, and its \texttt{typeId?} is \texttt{Z10}. The
+  load-bearing faithfulness check for the substrate.
+  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{128}.
 \end{lemma}
 
 \begin{definition}[Well-formedness]\label{def:wf}
   \uses{def:zobject}
   \lean{Wikifunctions.Model.ZObject.WellFormed}\leanok
   The inductive is deliberately permissive --- as the dynamically-typed deployed system is, where
-  validators can be skipped --- so validity is a \emph{separate, decidable} predicate \texttt{wf}:
-  a \wf{Z1}K1 key, no duplicate keys, and leaves that are \wf{Z6}/\wf{Z9} terminals
-  (\fnmodel{Z1/ZObjects}{§Z1/ZObjects}: ``every ZObject must have a key Z1K1/type \ldots every Key
-  can only appear once''). \texttt{natTwo} and the terminals check well-formed; a bare leaf, a node
-  without \wf{Z1}K1, and a duplicate-key node are rejected.
-  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{210}.
+  validators can be skipped --- so validity is a \emph{separate, decidable} predicate \texttt{wf}.
+  A terminal is well-formed atomically: a \texttt{str} always (any \wf{Z6}/String), a \texttt{ref}
+  iff its payload is a ZID (\fnmodel{Z1/ZObjects}{§Z9}: ``a string representing a ZID''). A
+  \texttt{node} needs a \wf{Z1}K1 key, no duplicate keys (§Z1/ZObjects: ``every Key can only
+  appear once''), and every value well-formed. \texttt{natTwo} and the terminals check
+  well-formed; a non-ZID reference, a node without \wf{Z1}K1, and a duplicate-key node are
+  rejected. Source: \leansrc{Wikifunctions/Model/ZObject.lean}{168}.
 \end{definition}
 
 \chapter{The generated type layer}\label{ch:types}
