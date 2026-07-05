@@ -1,112 +1,48 @@
-% Content of the Wikifunctions x Lean blueprint.
-% Each node names the Lean declaration it formalizes (\lean, and a \leansrc link
-% to the exact source line) and the live WikiLambda object it models (\wf link).
-% Green nodes in the dependency graph are formalized and proved in Lean; edges are
-% \uses dependencies. Divergences from the live system are flagged with \divergence
-% and analysed in SPEC\_AUDIT.md.
+% Content of the Wikifunctions x Lean blueprint (ground-up model).
+% Each node names the Lean declaration it formalizes (\lean, and a \leansrc link to
+% the exact source line) and the Function-model section / schema it is derived from.
+% Nodes are green in the dependency graph when formalized; edges are \uses deps.
 
-\chapter*{Abstract}
+\chapter*{Overview}
 
-This blueprint documents a machine-checked Lean~4 formalization that models a fragment of the deployed Wikifunctions / WikiLambda system: the \wf{Z7}/\wf{Z18} composition language, an imperative-Python subset used by two live code implementations, and a 25-function spec corpus. Two headline theorems --- coprimality (\ref{thm:z13701}) and factorial (\ref{thm:z13667}) --- prove the deployed programs compute exactly their Mathlib oracles; six composite bodies (\ref{thm:comp-coprime}--\ref{thm:comp-perfect}) are proved node-exact against their live \wf{Z14}K2 JSON. Everything is proved with no \texttt{sorry}, on axioms \texttt{[propext, Classical.choice, Quot.sound]}. The proofs are exact \emph{given} one empirical trust anchor --- that the Lean transcription is the deployed artifact on the modelled fragment (Chapter~\ref{ch:modeling}) --- and every deliberate simplification is recorded as an \emph{(editorial)} abstraction (Table~\ref{tab:abstractions}) or a confirmed divergence (Table~\ref{tab:divergences}, D1--D18). A reviewer deciding whether to trust the model should start with Chapter~\ref{ch:modeling}. \textbf{A ground-up rewrite is now underway} (Chapter~\ref{ch:rebuild}): it models every value as a \wf{Z1}/ZObject directly from the spec, and will supersede the \texttt{Val}-based layer that the rest of this document records.
+This blueprint documents a machine-checked Lean~4 model of the Wikifunctions / WikiLambda object
+system, built \emph{ground-up from the spec}. Its organising principle: \textbf{every value is a
+\wf{Z1}/ZObject}, and the type layer is \emph{generated} from the authoritative schemata rather
+than hand-written. The model lives under \repo{Wikifunctions/Model}{\texttt{Wikifunctions/Model/}}
+and is Mathlib-free.
 
-\chapter*{How to read this blueprint}
+Only two things are hand-written --- the \wf{Z1}/ZObject inductive and the \wf{Z6}/\wf{Z9}
+terminals it bottoms out in (Chapter~\ref{ch:zobject}). Every other built-in type is emitted by a
+compiler from its definition (Chapter~\ref{ch:types}). Each node links to its exact Lean source
+and to the Function-model section or function-schemata file it is derived from; no structural or
+behavioural claim is made without that spec citation.
 
-\paragraph{Reading order (roadmap).} Chapter~\ref{ch:modeling} (\emph{How this models Wikifunctions}) is the trust argument: the four authority layers, the modelling method, and the abstraction ledger --- read it first. The remaining chapters are the formalization itself, in dependency order: \emph{The imperative-Python layer} (the deep-embedded interpreter and the two proved programs), \emph{The composite layer} (six \wf{Z14}K2 bodies proved against Mathlib oracles), \emph{The spec corpus} (the 25-function catalog), and an \emph{Appendix} enumerating the value primitives.
+\paragraph{The authorities cited.} The prose
+\href{https://www.wikifunctions.org/wiki/Wikifunctions:Function_model}{Function model} (concepts),
+the machine-enforced
+\href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata}{function-schemata}
+(structural validity), and the live ZObjects (via the \texttt{wikilambda\_fetch} API, the ground
+truth for community types). Where the model makes a simplification the spec leaves open, it is
+marked \emph{(editorial)}.
 
-\paragraph{Convention: spec vs.\ (editorial).} Two labels recur throughout and carry weight. A claim is grounded in an \textbf{authority} --- the function-schemata (structural validity), the prose Function model, the live ZObjects, or the deployed orchestrator/evaluator (Chapter~\ref{ch:modeling}) --- and cites it. A claim the four authorities leave open (a menu of value types, a denotation in place of a record, \texttt{Option} for the \wf{Z22}/\wf{Z5} envelope) is a modelling choice, marked \emph{(editorial)} and justified at the point of use; it is never asserted as a spec fact. A \divergence{Dn} tag marks a place where the model provably differs from live behaviour, each catalogued in Table~\ref{tab:divergences}.
+\chapter{Z1/ZObjects --- the hand-written substrate}\label{ch:zobject}
 
-This blueprint maps the Lean~4 formalization in the \href{https://github.com/Deicyde/wikifunctions}{\texttt{Deicyde/wikifunctions}} repository onto the deployed WikiLambda / Wikifunctions system it models. Every node carries:
+The whole model rests on one inductive type and a few accessors, transcribed directly from the
+spec's definition of a ZObject and its normal form.
 
-\begin{itemize}
-  \item a \textbf{Lean} link (\leansrc{Wikifunctions/Model/ZObject.lean}{49}-style) to the exact source line, and the declaration name shown by the \textsf{L$\exists\forall$N} badge;
-  \item a \textbf{WikiLambda} link (e.g.\ \wf{Z13701}) to the live object on \href{https://www.wikifunctions.org}{wikifunctions.org} that the Lean models;
-  \item and, wherever a node makes a normative claim about \emph{types} or \emph{behaviour}, a \textbf{formal-spec} citation, split by what each artifact adjudicates: the machine-enforced \schema{Z8}-style function-schemata pin only \emph{structural} validity (\href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata/-/blob/main/README.md}{a shared set of JSON schemata giving a single source of truth for what counts as a structurally valid ZObject}), while the relevant \fnmodel{Z8/Functions}{Function model} prose section grounds the \emph{behavioural} claim --- so each claim rests on the spec, not on assertion. Where we sort types into a \emph{value}-versus-\emph{structural} menu, the schemata are silent, so that split is our \emph{(editorial)} classification, not a spec fact. (For example, the Value universe, Definition~\ref{def:eval-val}, has its type closure pinned to each function's \wf{Z8} signature and machine-checked by \repo{blueprint/check\_value\_universe.py}{a script}.)
-\end{itemize}
-
-In the dependency graph, a node is filled green when its Lean statement \emph{and} proof are complete; edges are \texttt{\textbackslash uses} dependencies. Everything here is proved with no \texttt{sorry}; the two headline theorems depend only on \texttt{[propext, Classical.choice, Quot.sound]}. They characterize the deep-embedded interpreter's \emph{language semantics} (the \fnmodel{Evaluation_order}{Function model \S~Evaluation order} fixes the result because ``all Z8/Functions are not allowed to have side-effects''), not the deployed runtime's \emph{execution budget}: the platform's fuel/deadline limits are out-of-band of the proved semantics (\divergence{D13}).
-
-The system is specified by a four-layer stack, cited throughout: the prose \href{https://www.wikifunctions.org/wiki/Wikifunctions:Function_model}{Function model}, the machine-enforced \href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata}{function-schemata}, the live objects (via the \texttt{wikilambda\_fetch} API), and the deployed orchestrator/evaluator (the \href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata/-/blob/main/README.md}{\texttt{function-orchestrator} and \texttt{function-evaluator}} services that consume the schemata; the evaluator's role is the one described in the \fnmodel{Evaluation_order}{Function model \S~Evaluation order}). The modelling chapter expands this stack into a per-claim authority table (Chapter~\ref{ch:modeling}). The companion \href{https://github.com/Deicyde/wikifunctions/blob/main/BLUEPRINT.md}{BLUEPRINT.md} pins each mapping to a runnable check; \href{https://github.com/Deicyde/wikifunctions/blob/main/SPEC_AUDIT.md}{SPEC\_AUDIT.md} records the confirmed divergences (D1--D18).
-
-\chapter{How this models Wikifunctions}\label{ch:modeling}
-
-This chapter lets a Lean-literate reviewer judge the model \emph{as a model of Wikifunctions}. It states the method, names every abstraction, and marks each claim per the legend above: spec (grounded in an authority below) or \emph{(editorial)}. Because the schemata pin \emph{structure} only, every semantic or classification claim is either sourced to the Function model / live objects / orchestrator, or flagged a choice.
-
-\paragraph{Four layers of authority.} Every normative claim in this blueprint cites the layer that actually decides it. (1)~The \emph{function-schemata} (\schema{Z1}, \schema{Z7}, \schema{Z18}, \schema{Z14}, \ldots) fix the JSON \emph{representation} --- what keys a ZObject must have and their shapes; they say nothing about behaviour. (2)~The prose \fnmodel{Z1/ZObjects}{Function model} fixes the \emph{concepts} --- e.g.\ ``every ZObject must have a key \wf{Z1}K1/type with a value that evaluates to a \wf{Z4}/Type'' (\fnmodel{Z1/ZObjects}{\S~Z1/ZObjects}), and that a \wf{Z14}K2 \emph{composition} is ``a \wf{Z7}/Function call'' serving as the implementation body (\fnmodel{Z14/Implementations}{\S~Z14/Implementations}). (3)~The \emph{live ZObjects} (via \texttt{wikilambda\_fetch}) are the definitions \emph{as deployed} --- richer than the prose, and the ground truth for the community types the model touches (\wf{Z13518}, \wf{Z19677}). (4)~The \emph{deployed orchestrator/evaluator} is behavioural ground truth where the spec is silent (eager application; the \wf{Z22}/\wf{Z5} error envelope; the RustPython runtime). A claim is only as strong as the layer under it: structural claims cite (1), semantic claims cite (2)--(4), and anything none of them settles is flagged \emph{(editorial)}.
-
-\paragraph{The core method: mirror dynamic typing, model the evaluator as data.} Wikifunctions is dynamically typed --- every value is a \wf{Z1} (``Object'') whose actual type is the \emph{runtime tag} \wf{Z1}K1 (spec: \fnmodel{Z1/ZObjects}{\S~Z1/ZObjects}). The Lean model mirrors this with a tagged union \texttt{Val} (Def.~\ref{def:eval-val}): its constructors \emph{are} the \wf{Z1}K1 tags (\wf{Z13518}/\wf{Z40}/\wf{Z19677}), and each carries the \emph{denotation} a live ZObject stands for, not the record (the number \(42\), not \texttt{\{Z1K1:Z13518,\,Z13518K1:"42"\}}). Because the model is untyped-value-shaped rather than a family of native Lean types, one evaluator \texttt{eval : Expr \(\to\) Option Val} (Def.~\ref{def:eval-eval}) can walk a heterogeneous \wf{Z14}K2 body once: the \wf{Z7} call / \wf{Z18} argument-reference fragment is reified as the \texttt{Expr} AST (Def.~\ref{def:eval-eval}), so composite bodies stay \emph{data} checked node-for-node against the live JSON --- not hand-rewrites that could silently drift. That is the faithfulness argument for the composite layer: the abstraction is only in the \emph{leaves} (Table~\ref{tab:abstractions}), never in the composition structure. (Why a single tagged union is the \emph{forced} shape here, not merely a convenient one, is argued at the Value-universe node, Def.~\ref{def:eval-val} and its remark.)
-
-\paragraph{The deliberate abstractions, and why each is sound.} Faithfulness here means \emph{documented} abstraction: each simplification below is stated, and either provably invisible on the modelled fragment or scoped by an explicit theorem hypothesis. The distinction between \emph{spec-forced} and \emph{(editorial)} is load-bearing --- the schemata pin representation, so choosing a denotation over a record, or \texttt{Option} over the \wf{Z22}/\wf{Z5} envelope, is our choice, sound because it is behaviour-preserving on success and collapses only channels the modelled theorems never observe.
-
-\begin{table}[h]\centering\small
-\begin{tabular}{@{}p{0.30\textwidth}p{0.62\textwidth}@{}}
-\hline
-\textbf{Abstraction} & \textbf{Status \& soundness} \\
-\hline
-Denotation, not raw ZObject record & \emph{(editorial).} \texttt{Val} holds the value a \wf{Z1} denotes, dropping the \wf{Z1}K1 wrapper the schema requires; sound because the tag is recovered by the constructor. \\
-Positional \wf{Z18}, not key-id & \emph{(editorial), \divergence{D16}.} Real \wf{Z18} references a key-id string (\schema{Z18}); \texttt{Expr.arg} indexes by position. Verified: in all six live bodies the bijection \(\texttt{arg }i \mapsto \texttt{Z}x\texttt{K}(i{+}1)\) is exact. \\
-\texttt{Option}, not \wf{Z22}/\wf{Z5} & \emph{(editorial), \divergence{D-info}.} The \wf{Z22} envelope / \wf{Z5} error taxonomy (\fnmodel{Z5/Errors}{\S~Z5}, \schema{Z22}) collapses to \texttt{none}; sound on the success-path theorems, which never inspect \emph{which} error. \\
-Eager evaluation & Spec-silent; matches orchestrator (layer 4). The one lazy builtin \wf{Z802} is out of scope, so eager application is exact here. \\
-Totalised \(\div 0\) & \emph{(editorial), \divergence{D3}/\divergence{D4}/\divergence{D5}.} Lean's total \(\div\)/\(\bmod\) return \(0\)/\(x\); live \wf{Z28194} errors. Diverges only at isolated inputs (e.g.\ \texttt{lcm}(0,0)), excluded by hypothesis or noted at the leaf. \\
-\(\mathbb{N}\) input domain & \emph{(editorial), \divergence{D12}.} Theorems quantify over \(\mathbb{N}\); live \wf{Z13518} skips validator \wf{Z101}, so a crafted negative is possible. Scoped by a well-formed-\wf{Z13518} precondition. \\
-CPython trust anchor & \emph{(editorial), \divergence{D11}.} Deployed Python runs on RustPython~0.5.0/wasm; the embedding is checked against CPython. Assumption: shared Python semantics on this subset. \\
-\hline
-\end{tabular}
-\caption{Modelling abstractions. ``Spec'' = forced by an authority; ``(editorial)'' = a choice the spec leaves open, sound for the stated reason.}\label{tab:abstractions}
-\end{table}
-
-\paragraph{The single irreducible assumption.} Everything above reduces to one trust assumption that Lean cannot discharge: that the Lean transcription \emph{is} the deployed artifact on the modelled fragment (\emph{model-faithfulness}). This is not proved; it is discharged \emph{empirically} --- native differential tests against CPython (859 cases, 0 mismatches for the Python layer), the \texttt{lean.py} harness, and live round-trip of every \wf{Z14}K2 body via \texttt{wikilambda\_fetch}. The Lean proofs are exact \emph{given} that anchor; the anchor's confidence is a matter of test coverage, not theorem, and is exactly what a reviewer should scrutinise.
-
-\paragraph{The divergences at a glance.} Table~\ref{tab:divergences} indexes every confirmed divergence D1--D18 (full analysis in \href{https://github.com/Deicyde/wikifunctions/blob/main/SPEC_AUDIT.md}{SPEC\_AUDIT.md}), so a reviewer can see the whole surface of where the model departs from live behaviour before reading the nodes that carry each tag.
-
-\begin{table}[h]\centering\small
-\begin{tabular}{@{}l p{0.66\textwidth} l@{}}
-\hline
-\textbf{ID} & \textbf{Divergence (model vs.\ live)} & \textbf{Severity} \\
-\hline
-\divergence{D1}  & \wf{Z28925} spec is order-sensitive; both live impls are permutation-invariant & major \\
-\divergence{D2}  & \wf{Z10862} multiply oracle is exact \(\mathbb{Z}/\mathbb{Q}\); all live impls are float64-lossy & major \\
-\divergence{D3}  & \texttt{.div} \(\div 0\) totalizes to \(0\) vs live \wf{Z28194} error (diverges only at \(\gcd(0,0)\)) & minor \\
-\divergence{D4}  & \texttt{.ratDiv} \(\div 0\) totalizes to \(0\) vs live \wf{Z28194} error (whole \(pB{=}0\) hyperplane) & minor \\
-\divergence{D5}  & Imp \texttt{\%} by zero is total (\(x\)); Python raises --- provably unreachable in both programs & minor \\
-\divergence{D6}  & \wf{Z28925} zero-guard: the two live impls disagree; the Lean spec sides with one & minor \\
-\divergence{D7}  & \wf{Z13341} lerp: live Python impl is partial on \(t \notin [0,1]\) & minor \\
-\divergence{D8}  & \wf{Z21005} log10: oracle \(\log x/\log 10\) differs from native \texttt{log10} by \(\le\)1--2 ULP & minor \\
-\divergence{D9}  & Proved \wf{Z13701} program and difftested twin are formally unrelated modules & minor \\
-\divergence{D10} & Trust-discharge harness has stale paths (repairable; passes once fixed) & minor \\
-\divergence{D11} & Trust anchor is CPython; deployed runtime is RustPython 0.5.0 / wasm & minor \\
-\divergence{D12} & \(\mathbb{N}\)-typed theorems assume a precondition production enforces only weakly (\wf{Z101} skipped) & minor \\
-\divergence{D13} & \(\forall n\) factorial claim characterizes language semantics, not the platform fuel/deadline budget & minor \\
-\divergence{D14} & \texttt{WikifunctionsEval} cites nonexistent ZID \texttt{Z70}; the rational type is \wf{Z19677} & minor \\
-\divergence{D15} & Bayes argument labels transposed vs live \wf{Z20000} (values correct by commutativity) & minor \\
-\divergence{D16} & Positional \wf{Z18} encoding vs live key-id references (bijection exact on the six bodies) & minor \\
-\divergence{D17} & \texttt{Expr} models only the fragment the composites use, not every \wf{Z14}K2 form & minor \\
-\divergence{D18} & \wf{Z20000} sits in the wrong spec tier (\(\mathbb{Q}\)-valued, belongs in tier 2) & minor \\
-\hline
-\end{tabular}
-\caption{Confirmed divergences, from \href{https://github.com/Deicyde/wikifunctions/blob/main/SPEC_AUDIT.md}{SPEC\_AUDIT.md} \S3. ``Model vs.\ live'' is the direction of departure; each \divergence{Dn} is analysed at the node that carries it. The success-path theorems are unaffected by the \div0 items (D3/D4), which are excluded by hypothesis or isolated input; the \emph{info}-level abstractions (\texttt{Option}-collapse, \(\mathbb{Q}\)-normalization) are cited in-text as \divergence{D-info}.}\label{tab:divergences}
-\end{table}
-
-\chapter{The rebuilt model: Z1/ZObjects}\label{ch:rebuild}
-
-\emph{A ground-up rewrite is underway.} The chapters that follow model values through a typed
-universe (\texttt{Val}); this new development instead starts where the spec starts --- every
-value \emph{is} a \wf{Z1}/ZObject --- and grows under \texttt{Wikifunctions/Model/}. It
-supersedes the \texttt{Val}-based layer incrementally; those chapters remain the current
-machine-checked content until each is ported.
-
-\begin{definition}[ZObject]\label{def:rb-zobject}
+\begin{definition}[ZObject]\label{def:zobject}
   \lean{Wikifunctions.Model.ZObject}\leanok
-  Derived verbatim from \fnmodel{Z1/ZObjects}{Function model \S~Z1/ZObjects} (``A ZObject
-  consists of a list of Key/value pairs \ldots \wf{Z6}/String and \wf{Z9}/Reference are terminal
-  values; they don't expand further'') and \fnmodel{Normal_form}{\S~Normal form} (``a tree where
-  all leaves are either \wf{Z6}/String or \wf{Z9}/Reference''): a \texttt{ZObject} is either a
-  terminal \texttt{str} leaf or a \texttt{node} --- an ordered list of key/value pairs. Two
-  constructors; everything else (\wf{Z4}, \wf{Z8}, \wf{Z7}, \wf{Z881}) is a shape of
-  \texttt{node}. Source: \leansrc{Wikifunctions/Model/ZObject.lean}{49}.
+  Derived verbatim from \fnmodel{Z1/ZObjects}{Function model \S~Z1/ZObjects} (``A ZObject consists
+  of a list of Key/value pairs \ldots \wf{Z6}/String and \wf{Z9}/Reference are terminal values;
+  they don't expand further'') and \fnmodel{Normal_form}{\S~Normal form} (``a tree where all
+  leaves are either \wf{Z6}/String or \wf{Z9}/Reference''): a \texttt{ZObject} is either a terminal
+  \texttt{str} leaf or a \texttt{node} --- an ordered list of key/value pairs. Two constructors;
+  everything else (\wf{Z4}, \wf{Z8}, \wf{Z7}, \wf{Z881}) is a shape of \texttt{node}.
+  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{49}.
 \end{definition}
 
-\begin{definition}[Accessors and terminals]\label{def:rb-accessors}
-  \uses{def:rb-zobject}
+\begin{definition}[Accessors and terminals]\label{def:accessors}
+  \uses{def:zobject}
   \lean{Wikifunctions.Model.ZObject.type?}\leanok
   Key lookup (\texttt{get?}), the type key (\texttt{type?} \(=\) the \wf{Z1}K1 value; §Z1/ZObjects:
   ``every ZObject must have a key Z1K1/type''), and the two terminals as smart constructors:
@@ -115,345 +51,52 @@ machine-checked content until each is ported.
   Source: \leansrc{Wikifunctions/Model/ZObject.lean}{106}.
 \end{definition}
 
-\begin{lemma}[Faithful to the spec's normal-form example]\label{lem:rb-nattwo}
-  \uses{def:rb-zobject}
+\begin{lemma}[Faithful to the spec's normal-form example]\label{lem:nattwo}
+  \uses{def:zobject}
   \lean{Wikifunctions.Model.ZObject.natTwo}\leanok
   \texttt{natTwo} reproduces the \fnmodel{Normal_form}{§Normal-form} example \emph{definitionally}
   (\texttt{rfl}): the natural number 2 is \texttt{\{Z1K1:\{Z1K1:Z9,\,Z9K1:Z10\},
-  Z10K1:\{Z1K1:Z6,\,Z6K1:"2"\}\}}. This is the load-bearing faithfulness check for the rebuilt
-  substrate. Source: \leansrc{Wikifunctions/Model/ZObject.lean}{140}.
+  Z10K1:\{Z1K1:Z6,\,Z6K1:"2"\}\}}. This is the load-bearing faithfulness check for the substrate.
+  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{149}.
 \end{lemma}
 
-\begin{definition}[Well-formedness]\label{def:rb-wf}
-  \uses{def:rb-zobject}
+\begin{definition}[Well-formedness]\label{def:wf}
+  \uses{def:zobject}
   \lean{Wikifunctions.Model.ZObject.WellFormed}\leanok
-  The inductive is deliberately permissive --- as the dynamically-typed deployed system is,
-  where validators can be skipped --- so validity is a \emph{separate, decidable} predicate
-  \texttt{wf}: a \wf{Z1}K1 key, no duplicate keys, and leaves that are \wf{Z6}/\wf{Z9} terminals
+  The inductive is deliberately permissive --- as the dynamically-typed deployed system is, where
+  validators can be skipped --- so validity is a \emph{separate, decidable} predicate \texttt{wf}:
+  a \wf{Z1}K1 key, no duplicate keys, and leaves that are \wf{Z6}/\wf{Z9} terminals
   (\fnmodel{Z1/ZObjects}{§Z1/ZObjects}: ``every ZObject must have a key Z1K1/type \ldots every Key
-  can only appear once''). \texttt{natTwo} and the terminals check well-formed; a bare leaf,
-  a node without \wf{Z1}K1, and a duplicate-key node are rejected.
-  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{196}.
+  can only appear once''). \texttt{natTwo} and the terminals check well-formed; a bare leaf, a node
+  without \wf{Z1}K1, and a duplicate-key node are rejected.
+  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{205}.
 \end{definition}
 
-\begin{definition}[The generated type layer]\label{def:rb-types}
-  \uses{def:rb-zobject}
-  The built-in types are \emph{not} hand-written. \repo{codegen/gen\_type.py}{\texttt{codegen/gen\_type.py}}
-  reads each type's authoritative definition --- the function-schemata \schema{Z4}-style YAML for
-  built-ins, or the live \wf{Z4} (\texttt{wikilambda\_fetch}) for community types --- and emits, on
-  the \texttt{ZObject} substrate, a smart constructor, per-key accessors, an \texttt{isZxx}
-  recognizer, and a \texttt{by decide} self-check that the constructor and recognizer agree. All
-  \textbf{29 built-in types} (\repo{Wikifunctions/Model/Types}{\texttt{Model/Types/}}) are generated
-  this way; only \wf{Z1}/ZObject and the \wf{Z6}/\wf{Z9} terminals it bottoms out in are
-  hand-written. This is the spec-to-the-letter ideal: the schema \emph{is} the spec, so generating
-  from it removes per-type interpretation.
+\chapter{The generated type layer}\label{ch:types}
+
+Above the substrate, the built-in types are not written by hand --- they are compiled from their
+definitions, so the type layer is faithful to the schemata by construction.
+
+\begin{definition}[The type compiler]\label{def:codegen}
+  \uses{def:zobject}
+  \repo{codegen/gen\_type.py}{\texttt{codegen/gen\_type.py}} reads each type's authoritative
+  definition --- the function-schemata \schema{Z4}-style YAML for built-ins, or the live \wf{Z4}
+  (\texttt{wikilambda\_fetch}) for community types, both reduced to \(\{\)type ZID, ordered data
+  keys\(\}\) --- and emits, on the \texttt{ZObject} substrate, a smart constructor, per-key
+  accessors, an \texttt{isZxx} recognizer, and a \texttt{by decide} self-check that the constructor
+  and recognizer agree. The schema \emph{is} the spec, so generation removes per-type
+  interpretation entirely.
 \end{definition}
 
-\chapter{The imperative-Python layer}
-
-A deep embedding of the imperative-Python subset used by two \emph{deployed} Wikifunctions code implementations, with a fuel-interpreter semantics, proved equivalent to Mathlib specifications. Trust assumption (\leansrc{Wikifunctions/Python/Imp.lean}{31}): the embedding faithfully models the deployed interpreter on this subset. The spec fixes only that an implementation is a \fnmodel{Z16/Code}{Z16/Code snippet in a given language, which the evaluator executes after transforming the argument ZObjects into native values and back} (\schema{Z16}); it names no interpreter or runtime and defers native-value translation to a future design document. \emph{(Editorial, verified against the deployed \repo{}{function-evaluator}, not the prose:)} deployed user Python runs on RustPython~0.5.0 / wasm (\divergence{D11}).
-
-\section{The embedding (\texttt{Imp.lean})}
-
-\begin{definition}[Variable store]\label{def:imp-state}
-  \lean{Wikifunctions.Python.State}\leanok
-  A strict association list \texttt{List (String $\times$ Nat)}; first binding wins, unbound reads default to \texttt{0}. Source: \leansrc{Wikifunctions/Python/Imp.lean}{46}.
+\begin{definition}[The built-in inventory]\label{def:types}
+  \uses{def:codegen}
+  All \textbf{29 built-in types} --- every function-schemata \texttt{CANONICAL} type except the
+  hand-written \wf{Z1}/\wf{Z6}/\wf{Z9} --- are generated into
+  \repo{Wikifunctions/Model/Types}{\texttt{Wikifunctions/Model/Types/}} (\wf{Z2}, \wf{Z3}, \wf{Z4},
+  \wf{Z5}, \wf{Z7}, \wf{Z8}, \wf{Z14}, \wf{Z16}, \wf{Z17}, \wf{Z18}, \wf{Z22}, \wf{Z40}, \ldots).
+  All from the schemata YAML except \wf{Z23}/Nothing (live \wf{Z4} fallback); all build green with
+  their self-checks. The community numeric type \wf{Z19677}/Rational is generated the same way from
+  its live \wf{Z4}. \emph{(editorial)} The current \texttt{isZxx} checks key \emph{presence}; the
+  schema's enum/type constraints (e.g.\ \wf{Z40}K1 \(\in \{\)\wf{Z41}, \wf{Z42}\(\}\)) are the next
+  increment.
 \end{definition}
-
-\begin{definition}[Store read/write]\label{def:imp-stateops}
-  \uses{def:imp-state}
-  \lean{Wikifunctions.Python.State.get, Wikifunctions.Python.State.set}\leanok
-  \texttt{get} is a single strict linear scan; \texttt{set} conses a shadowing binding (no lazy closure chain --- the fix for the exponential-blowup bug documented in the source). Source: \leansrc{Wikifunctions/Python/Imp.lean}{50}.
-\end{definition}
-
-\begin{definition}[Expressions and conditions]\label{def:imp-expr}
-  \lean{Wikifunctions.Python.Expr, Wikifunctions.Python.Cond}\leanok
-  Expressions: variable, nat literal, \texttt{+}, \texttt{*}, \texttt{\%}. Conditions: \texttt{e != 0} and \texttt{e1 <= e2}. Source: \leansrc{Wikifunctions/Python/Imp.lean}{69}.
-\end{definition}
-
-\begin{definition}[Statements]\label{def:imp-stmt}
-  \uses{def:imp-expr}
-  \lean{Wikifunctions.Python.Stmt}\leanok
-  A \emph{parallel} assignment \texttt{x1, x2 = e1, e2} (both right-hand sides evaluated in the pre-state --- a faithful Python swap), a \texttt{while} loop, and sequencing. Source: \leansrc{Wikifunctions/Python/Imp.lean}{85}.
-\end{definition}
-
-\begin{definition}[Expression / condition evaluation]\label{def:imp-eval}
-  \uses{def:imp-expr, def:imp-stateops}
-  \lean{Wikifunctions.Python.Expr.eval, Wikifunctions.Python.Cond.eval}\leanok
-  Total evaluation of expressions to \texttt{Nat} and conditions to \texttt{Bool}. \texttt{\%} uses total \texttt{Nat.mod}, which returns \(x\) at \texttt{x \% 0} (\divergence{D5}: real Python raises, and the spec treats such a failure as a \fnmodel{Z5/Errors}{Z5/Error --- ``division by zero'' is the spec's own example}, live \wf{Z507}/``Error in evaluation''). The divergence is \emph{(editorially)} sound because \texttt{\% 0} is provably unreachable in both deployed programs (the \texttt{\%} in \wf{Z29182} runs only under its \texttt{while b != 0} guard; \wf{Z13668} uses no \texttt{\%}). Source: \leansrc{Wikifunctions/Python/Imp.lean}{94}.
-\end{definition}
-
-\begin{definition}[Parallel assignment semantics]\label{def:imp-dopassign}
-  \uses{def:imp-stateops, def:imp-eval}
-  \lean{Wikifunctions.Python.doPassign}\leanok
-  Both right-hand sides are evaluated in the current state, then both targets updated. Source: \leansrc{Wikifunctions/Python/Imp.lean}{109}.
-\end{definition}
-
-\begin{definition}[Fuel interpreter]\label{def:imp-run}
-  \uses{def:imp-stmt, def:imp-dopassign, def:imp-eval}
-  \lean{Wikifunctions.Python.Stmt.run}\leanok
-  Operational semantics of statements; \texttt{none} means the fuel budget was exhausted. Source: \leansrc{Wikifunctions/Python/Imp.lean}{116}.
-\end{definition}
-
-\section{\texttt{Z13701} ``are coprime'' --- verified against \texorpdfstring{\texttt{Nat.Coprime}}{Nat.Coprime}}
-
-Models the deployed Python \fnmodel{Z14/Implementations}{Z14/Implementation} \wfl{Z29182}{impl.\ of \wf{Z13701}} --- a \fnmodel{Z16/Code}{Z16/Code} snippet with language Z16K1=\wf{Z610} (Python) --- whose source is \texttt{while b != 0: a, b = b, a \% b; return a == 1}.
-
-\begin{definition}[The coprime program]\label{def:z13701-prog}
-  \uses{def:imp-stmt, def:imp-state}
-  \lean{Wikifunctions.Python.loop, Wikifunctions.Python.initState}\leanok
-  A 1:1 transcription of \wf{Z29182} as \texttt{Stmt} data. Source: \leansrc{Wikifunctions/Python/Z13701.lean}{50}. (\divergence{D9}: the proved program and the \texttt{DiffDriver} program are token-identical twins in separate modules.)
-\end{definition}
-
-\begin{lemma}[Euclidean invariant]\label{lem:z13701-gcd}
-  \uses{def:imp-dopassign}
-  \lean{Wikifunctions.Python.gcd_body}\leanok
-  The loop body preserves \texttt{Nat.gcd}: after \texttt{a, b = b, a \% b} one has \texttt{gcd b (a \% b) = gcd a b}. Source: \leansrc{Wikifunctions/Python/Z13701.lean}{85}.
-  \begin{proof}\leanok Via \texttt{Nat.gcd\_rec} and \texttt{Nat.gcd\_comm}.\end{proof}
-\end{lemma}
-
-\begin{lemma}[Loop correctness and termination]\label{lem:z13701-loop}
-  \uses{def:imp-run, lem:z13701-gcd, def:z13701-prog}
-  \lean{Wikifunctions.Python.loop_correct}\leanok
-  With fuel exceeding \texttt{b}, the loop terminates and its final \texttt{a} is \texttt{gcd a b}. Source: \leansrc{Wikifunctions/Python/Z13701.lean}{99}.
-  \begin{proof}\leanok Induction on fuel; the recursive step decreases \texttt{b} by \texttt{Nat.mod\_lt}.\end{proof}
-\end{lemma}
-
-\begin{definition}[Program result]\label{def:z13701-run}
-  \uses{def:z13701-prog, def:imp-run}
-  \lean{Wikifunctions.Python.runProgram}\leanok
-  Runs the loop with fuel \texttt{b+1}, then returns \texttt{a == 1}. Source: \leansrc{Wikifunctions/Python/Z13701.lean}{136}.
-\end{definition}
-
-\begin{theorem}[Coprimality]\label{thm:z13701}
-  \uses{def:z13701-run, lem:z13701-loop}
-  \lean{Wikifunctions.Python.runProgram_eq_coprime}\leanok
-  For all \(a, b\), \texttt{runProgram a b = some (decide (Nat.Coprime a b))}: on well-formed \fnmodel{Z8/Functions}{Z8/Function} inputs of the declared argument type \wf{Z13518} (natural number), the deployed \wf{Z13701} computes exactly Mathlib's \texttt{Nat.Coprime}. (\divergence{D12}: the theorem quantifies over all \(a,b:\mathbb{N}\), but live type-enforcement is weak --- \wf{Z13518}'s Python converter runs \texttt{int()} over the arbitrary Z6 string, so a crafted negative input reaches the body outside the \(\mathbb{N}\) precondition.) Source: \leansrc{Wikifunctions/Python/Z13701.lean}{143}.
-  \begin{proof}\leanok From the loop lemma (\ref{lem:z13701-loop}); axioms \texttt{[propext, Classical.choice, Quot.sound]}.\end{proof}
-\end{theorem}
-
-\section{\texttt{Z13667} ``factorial'' --- verified against \texorpdfstring{\texttt{Nat.factorial}}{Nat.factorial}}
-
-Models one deployed Python \fnmodel{Z14/Implementations}{Z14/Implementation} \wfl{Z13668}{impl.\ of \wf{Z13667}}: a \texttt{for i in range} accumulator, embedded via a \texttt{while} desugaring. \emph{(Editorial:)} \wf{Z13667} also lists a JavaScript implementation (\wf{Z14899}) ahead of \wf{Z13668}, and \fnmodel{Evaluation_order}{implementation selection is left to the evaluator}, so this is not necessarily the one production runs.
-
-\begin{definition}[The factorial program]\label{def:z13667-prog}
-  \uses{def:imp-stmt, def:imp-state}
-  \lean{Wikifunctions.Python.facLoop, Wikifunctions.Python.facInit}\leanok
-  Transcription of \wf{Z13668} as \texttt{Stmt} data (the \texttt{for}$\to$\texttt{while} desugaring is observationally exact for the returned accumulator). Source: \leansrc{Wikifunctions/Python/Z13667Prog.lean}{37}.
-\end{definition}
-
-\begin{lemma}[Factorial loop correctness]\label{lem:z13667-loop}
-  \uses{def:imp-run, def:z13667-prog}
-  \lean{Wikifunctions.Python.facLoop_correct}\leanok
-  Source: \leansrc{Wikifunctions/Python/Z13667.lean}{92}.
-  \begin{proof}\leanok Induction on the loop counter.\end{proof}
-\end{lemma}
-
-\begin{definition}[Factorial result]\label{def:z13667-run}
-  \uses{def:z13667-prog, def:imp-run}
-  \lean{Wikifunctions.Python.runFac}\leanok
-  Source: \leansrc{Wikifunctions/Python/Z13667Prog.lean}{46}.
-\end{definition}
-
-\begin{theorem}[Factorial]\label{thm:z13667}
-  \uses{def:z13667-run, lem:z13667-loop}
-  \lean{Wikifunctions.Python.runFac_eq_factorial}\leanok
-  For all \(n\), \texttt{runFac n = some (Nat.factorial n)} on well-formed \fnmodel{Z8/Functions}{Z8/Function} inputs of the declared argument type \wf{Z13518} (natural number). Source: \leansrc{Wikifunctions/Python/Z13667.lean}{144}. (\divergence{D13}: the theorem characterizes language semantics; the platform bounds execution by fuel/timeout, returning \wf{Z576} on wasm-fuel exhaustion at large \(n\). \divergence{D12}: the \(n:\mathbb{N}\) quantifier is a modelling precondition --- weak live type-enforcement lets a crafted negative input reach the body, where the empty \texttt{range} returns \(1\), outside the verified domain.)
-  \begin{proof}\leanok From the loop lemma (\ref{lem:z13667-loop}); clean axioms.\end{proof}
-\end{theorem}
-
-\chapter{The composite layer}
-
-A deep embedding of the \wf{Z14}K2 \emph{composition} language with a total evaluator (the \fnmodel{Composition}{most portable Z14/Implementation, a Z7 tree of function-calls over Z18 argument-references}; \wf{Z14}K2 is the composition body, one of the three \schema{Z14} implementation kinds --- Z14K2/composition, Z14K3/code, Z14K4/builtin), proving six real composite implementations equal to their Mathlib oracles. Each leaf carries a Mathlib-backed denotation; a composite inherits correctness from its leaves and the evaluator.
-
-\begin{definition}[Composite value universe]\label{def:eval-val}
-  \lean{Wikifunctions.Val}\leanok
-  The same three-type denotation as the core value universe (\ref{def:eval-val})
-  --- \wf{Z13518} naturals, \wf{Z40} booleans, \wf{Z19677} rationals, each modelled
-  by the value it represents rather than by its \fnmodel{Z1/ZObjects}{ZObject record of Z1K1/type plus key/value pairs} \emph{(editorial:} the value-versus-record collapse is a modelling choice, not a schema fact\emph{)}. As in the core universe, \texttt{Val.rat} identifies an unreduced \wf{Z19677} (e.g.\ \(2/4\)) with its reduced form (\divergence{D-info}). This is
-  \texttt{WikifunctionsEval.lean}'s own \texttt{Val}, a copy distinct from the core
-  one (\divergence{D-info}: the two files define clashing \texttt{Wikifunctions.Val}).
-  Source: \leansrc{WikifunctionsEval.lean}{58}.
-\end{definition}
-
-\begin{definition}[Leaf library]\label{def:eval-leaf}
-  \lean{Wikifunctions.Leaf}\leanok
-  Eleven primitive functions, each a live Wikifunction: \wf{Z13522} (natEq), \wf{Z13612} (gcd), \wf{Z13539} (mul), \wf{Z13546} (div), \wf{Z13521} (add), \wf{Z13582} (dec), \wf{Z13846} (ite), \wf{Z13848} (choose), \wf{Z13993} (sumProperDivisors), \wf{Z19706} (ratMul), \wf{Z19708} (ratDiv). Source: \leansrc{WikifunctionsEval.lean}{66}.
-\end{definition}
-
-\begin{definition}[Leaf denotations]\label{def:eval-leafeval}
-  \uses{def:eval-leaf, def:eval-val}
-  \lean{Wikifunctions.Leaf.eval}\leanok
-  Each clause substitutes a Mathlib oracle (\texttt{Nat.gcd}, \texttt{Nat.choose}, \texttt{Nat.properDivisors} sum, \dots) for the leaf's deployed behaviour \emph{(editorial}, the same extensional oracle-substitution as the code layer, \divergence{D11}\emph{)}; the live leaf is itself a \fnmodel{Z8/Functions}{Z8/Function} whose meaning comes from a \fnmodel{Z14/Implementations}{Z14/Implementation} (code or composition), not from the Mathlib clause. \texttt{div}/\texttt{ratDiv} totalize division by zero to \texttt{0} (\divergence{D3}, \divergence{D4}: division by zero is an unrecoverable \fnmodel{Z5/Errors}{Z5/Error --- the spec's own example}, and the live \wf{Z13546}/\wf{Z19708} implementations guard it and return a \wf{Z28194}/``Divided by 0'' error). Source: \leansrc{WikifunctionsEval.lean}{89}.
-\end{definition}
-
-\begin{definition}[Composition AST and evaluator]\label{def:eval-eval}
-  \uses{def:eval-val, def:eval-leafeval}
-  \lean{Wikifunctions.Expr, Wikifunctions.eval, Wikifunctions.evalArgs}\leanok
-  The \fnmodel{Composition}{\wf{Z14}K2 body shape} --- a Z7 tree of calls (\texttt{Expr.call}), Z18 argument-references (\texttt{Expr.arg}), and literal ZObjects (\texttt{Expr.lit}, e.g.\ a \wf{Z13518} natural) --- and its total evaluator; real Z18 refs are by key-id string and are modelled positionally (\divergence{D16}). Source: \leansrc{WikifunctionsEval.lean}{82}.
-\end{definition}
-
-\section{The six verified composites}
-
-\begin{definition}[coprime composite]\label{def:comp-coprime}
-  \uses{def:eval-eval}
-  \lean{Wikifunctions.coprimeComposite}\leanok
-  The real body of \wfl{Z13702}{composite of \wf{Z13701}}: \texttt{natEq(gcd(a,b), 1)}. Source: \leansrc{WikifunctionsEval.lean}{123}.
-\end{definition}
-\begin{theorem}[coprime composite correct]\label{thm:comp-coprime}
-  \uses{def:comp-coprime}
-  \lean{Wikifunctions.coprimeComposite_correct}\leanok
-  \texttt{eval} of the composite \(=\) \texttt{decide (Nat.Coprime a b)}. Source: \leansrc{WikifunctionsEval.lean}{127}.
-  \begin{proof}\leanok\end{proof}
-\end{theorem}
-
-\begin{definition}[lcm composite]\label{def:comp-lcm}
-  \uses{def:eval-eval}
-  \lean{Wikifunctions.lcmComposite}\leanok
-  The real body of \wfl{Z13661}{composite of \wf{Z13660}}: \texttt{divide(multiply(a,b), gcd(a,b))}. Source: \leansrc{WikifunctionsEval.lean}{136}.
-\end{definition}
-\begin{theorem}[lcm composite correct]\label{thm:comp-lcm}
-  \uses{def:comp-lcm}
-  \lean{Wikifunctions.lcmComposite_correct}\leanok
-  \texttt{eval} \(=\) \texttt{Nat.lcm a b}. Source: \leansrc{WikifunctionsEval.lean}{140}. (\divergence{D3}: at \((0,0)\) the total model returns \texttt{0} where live returns a \wf{Z28194} error.)
-  \begin{proof}\leanok\end{proof}
-\end{theorem}
-
-\begin{definition}[Kronecker composite]\label{def:comp-kron}
-  \uses{def:eval-eval}
-  \lean{Wikifunctions.kroneckerComposite}\leanok
-  The real body of \wfl{Z15852}{composite of \wf{Z15849}}: \texttt{if(natEq(i,j), 1, 0)}. Source: \leansrc{WikifunctionsEval.lean}{145}.
-\end{definition}
-\begin{theorem}[Kronecker composite correct]\label{thm:comp-kron}
-  \uses{def:comp-kron}
-  \lean{Wikifunctions.kroneckerComposite_correct}\leanok
-  Source: \leansrc{WikifunctionsEval.lean}{150}.
-  \begin{proof}\leanok\end{proof}
-\end{theorem}
-
-\begin{definition}[r-simplex composite]\label{def:comp-simplex}
-  \uses{def:eval-eval}
-  \lean{Wikifunctions.simplexComposite}\leanok
-  The real body of \wfl{Z15487}{composite of \wf{Z15483}}: \texttt{choose(add(n, dec(r)), r)}. Source: \leansrc{WikifunctionsEval.lean}{157}.
-\end{definition}
-\begin{theorem}[r-simplex composite correct]\label{thm:comp-simplex}
-  \uses{def:comp-simplex}
-  \lean{Wikifunctions.simplexComposite_correct}\leanok
-  Agrees with \texttt{Nat.multichoose} for all \(n, r\) (including \(r = 0\), since live \texttt{dec} truncates at 0). Source: \leansrc{WikifunctionsEval.lean}{162}.
-  \begin{proof}\leanok\end{proof}
-\end{theorem}
-
-\begin{definition}[Bayes composite]\label{def:comp-bayes}
-  \uses{def:eval-eval}
-  \lean{Wikifunctions.bayesComposite}\leanok
-  The real body of \wfl{Z20001}{composite of \wf{Z20000}}: \texttt{divide(multiply(K1,K2), K3)} over rationals. Source: \leansrc{WikifunctionsEval.lean}{167}. (\divergence{D15}: argument labels are transposed vs live; values are correct by commutativity.)
-\end{definition}
-\begin{theorem}[Bayes composite correct]\label{thm:comp-bayes}
-  \uses{def:comp-bayes}
-  \lean{Wikifunctions.bayesComposite_correct}\leanok
-  \texttt{eval} \(=\) the posterior \(P(B|A)\cdot P(A)/P(B)\). Source: \leansrc{WikifunctionsEval.lean}{171}. (\divergence{D4}: at \(P(B)=0\) the total model returns \texttt{0} where live errors.)
-  \begin{proof}\leanok\end{proof}
-\end{theorem}
-
-\begin{definition}[perfect-number composite]\label{def:comp-perfect}
-  \uses{def:eval-eval}
-  \lean{Wikifunctions.perfectComposite}\leanok
-  The real body of \wfl{Z14934}{composite of \wf{Z14933}}: \texttt{natEq(sumProperDivisors(n), n)}. Source: \leansrc{WikifunctionsEval.lean}{181}.
-\end{definition}
-\begin{theorem}[perfect composite correct]\label{thm:comp-perfect}
-  \uses{def:comp-perfect}
-  \lean{Wikifunctions.perfectComposite_correct, Wikifunctions.perfectComposite_perfect}\leanok
-  Tests \(\sum(\text{proper divisors of } n) = n\); for \(n > 0\) it agrees exactly with \texttt{Nat.Perfect}. Source: \leansrc{WikifunctionsEval.lean}{185}.
-  \begin{proof}\leanok The composite omits the positivity guard, matched by the \(0 < n\) hypothesis.\end{proof}
-\end{theorem}
-
-\chapter{The spec corpus}
-
-\texttt{WikifunctionsSpecs.lean} pins a Mathlib oracle and defining properties for each function in the 25-member addressable set. The faithfulness criterion per row is: the live \fnmodel{Z8/Functions}{Z8/Function}'s output equals the Lean oracle's value on their shared value domain, within the tier's arithmetic regime; the correspondence is discharged by per-block bridge lemmas (e.g.\ \texttt{Z28925\_spec} $\leftrightarrow$ Mathlib \texttt{PythagoreanTriple} at \leansrc{WikifunctionsSpecs.lean}{367}, \texttt{Z20000\_spec} $=$ the Bayes product at \leansrc{WikifunctionsSpecs.lean}{347}). These are a flat catalog (no inter-dependencies), so they are tabulated rather than graphed. Every row's signature-existence was checked against the live \fnmodel{Z8/Functions}{Z8/Function} (its Z8K1 argument declarations and Z8K2 return type, via \texttt{wikilambda\_fetch}, 2026-07-02); the tier and status columns are this model's own \emph{(editorial)} audit taxonomy (composite / oracle / spec-only), which the schemata do not define, and follow SPEC\_AUDIT.md.
-
-\begin{center}
-\small
-\begin{tabular}{l l l l}
-\textbf{WikiLambda} & \textbf{Lean spec} & \textbf{Tier} & \textbf{Status} \\
-\hline
-\wf{Z12427} & \leansrc{WikifunctionsSpecs.lean}{65}  & composite & clean \\
-\wf{Z13612} & \leansrc{WikifunctionsSpecs.lean}{83}  & composite & clean \\
-\wf{Z13660} & \leansrc{WikifunctionsSpecs.lean}{104} & composite & clean \\
-\wf{Z13667} & \leansrc{WikifunctionsSpecs.lean}{121} & composite & clean \\
-\wf{Z13701} & \leansrc{WikifunctionsSpecs.lean}{145} & composite & clean \\
-\wf{Z13822} & \leansrc{WikifunctionsSpecs.lean}{164} & composite & clean \\
-\wf{Z13835} & \leansrc{WikifunctionsSpecs.lean}{194} & composite & clean \\
-\wf{Z13955} & \leansrc{WikifunctionsSpecs.lean}{210} & composite & clean \\
-\wf{Z14933} & \leansrc{WikifunctionsSpecs.lean}{234} & composite & clean \\
-\wf{Z18194} & \leansrc{WikifunctionsSpecs.lean}{256} & composite & repr.\ mismatch (tagged) \\
-\wf{Z13521} & \leansrc{WikifunctionsSpecs.lean}{285} & composite & clean \\
-\wf{Z15483} & \leansrc{WikifunctionsSpecs.lean}{304} & composite & clean \\
-\wf{Z15849} & \leansrc{WikifunctionsSpecs.lean}{322} & composite & clean \\
-\wf{Z20000} & \leansrc{WikifunctionsSpecs.lean}{343} & composite (D18: should be oracle) & \divergence{D18} tier \\
-\wf{Z28925} & \leansrc{WikifunctionsSpecs.lean}{362} & composite & \divergence{D1} order-sensitive \\
-\wf{Z30840} & \leansrc{WikifunctionsSpecs.lean}{397} & oracle & clean \\
-\wf{Z10862} & \leansrc{WikifunctionsSpecs.lean}{434} & oracle & \divergence{D2} float64-lossy \\
-\wf{Z21917} & \leansrc{WikifunctionsSpecs.lean}{455} & oracle & repr.\ mismatch (tagged) \\
-\wf{Z31173} & \leansrc{WikifunctionsSpecs.lean}{479} & oracle & clean \\
-\wf{Z21003} & \leansrc{WikifunctionsSpecs.lean}{496} & oracle (Float) & clean \\
-\wf{Z21005} & \leansrc{WikifunctionsSpecs.lean}{523} & oracle (Float) & \divergence{D8} log10 ULP \\
-\wf{Z12665} & \leansrc{WikifunctionsSpecs.lean}{550} & oracle (Float) & clean \\
-\wf{Z13341} & \leansrc{WikifunctionsSpecs.lean}{576} & oracle (Float) & \divergence{D7} partial impl \\
-\wf{Z35278} & \leansrc{WikifunctionsSpecs.lean}{623} & oracle (Float) & clean \\
-\wf{Z16483} & \leansrc{WikifunctionsSpecs.lean}{673} & spec-only & clean \\
-\end{tabular}
-\end{center}
-
-\paragraph{Community types this corpus rests on.} \wf{Z13518} (natural: a single key \wf{Z13518}K1, a \wf{Z6} decimal digit-string), \wf{Z16683} (integer: sign \wf{Z16659} $+$ absolute value \wf{Z13518}), \wf{Z19677} (rational: sign/numerator/denominator), \wf{Z20838} (float64: a \wf{Z4}/Type record of sign/exponent/significand/special-value). All four are community \wf{Z4}/Types absent from \texttt{CANONICAL/}, so their structure is pinned only by the live objects. Lean's \texttt{Float} is IEEE-754 binary64; we \emph{(editorially)} identify it with the runtime carrier of the deployed \wf{Z20838} implementations (JS Number / Python float), using \texttt{@[extern]} libm, so the Float-tier oracles are \texttt{\#eval}-comparable to the live functions in the float64-exact regime --- bit-for-bit for most rows, but within 1--2 ULP for \divergence{D8} (\wf{Z21005} log10) and only on the total domain of the live impl for \divergence{D7} (\wf{Z13341} lerp).
-
-\chapter{Appendix: Wikifunctions value primitives}\label{app:primitives}
-
-\emph{Per the spec-to-the-letter rule, this appendix states only what the schemata and live
-definitions give.} The complete, authoritative set of \textbf{built-in} types is exactly the
-\href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata/-/tree/main/data/CANONICAL}{function-schemata
-\texttt{data/CANONICAL/}} directory (32 typed schemas, plus the \texttt{LIST} and \texttt{RESOLVER}
-schema constructs); each type below links to its schema. \wf{Z13518}, \wf{Z16683}, \wf{Z19677},
-\wf{Z20838} (natural / integer / rational / float) have \emph{no} schema there --- verifiably
-absent from \texttt{CANONICAL/} --- so numbers are community \wf{Z4}/Types (e.g.\ \wf{Z19677}, a live \wf{Z4} with keys K1 sign / K2 numerator / K3 denominator), not entries in \texttt{CANONICAL/}; here \emph{(editorial)} ``built-in'' means ``has a \texttt{CANONICAL/} schema'' --- the prose spec's \fnmodel{Builtin_implementations}{``builtin''} instead names hardcoded \wf{Z14}K4 \emph{implementations}. They are linked to their live \wf{Z4} definitions instead. Groupings marked \emph{(editorial)} are our
-organisation for the reader; the schemata define each type's \emph{structure}, not a
-value-versus-structural split. Regenerate with \repo{blueprint/list\_primitives.py}{\texttt{list\_primitives.py}}.
-
-\textbf{Built-in types whose instances this corpus treats as values} \emph{(editorial grouping)}:
-
-\begin{center}
-\begin{tabular}{llll}
-\textbf{Type} & \textbf{Schema} & \textbf{In \texttt{Val}} & \textbf{Structure (per schema / live \wf{Z4})} \\
-\hline
-\wf{Z6} String                    & \schema{Z6}   & --  & a string \\
-\wf{Z40} Boolean                  & \schema{Z40}  & yes & \wf{Z40}K1 \(\in \{\)\wf{Z41}, \wf{Z42}\(\}\) \\
-\wf{Z86} Unicode code point       & \schema{Z86}  & --  & a code point \\
-\wf{Z80} Byte                     & \schema{Z80}  & --  & a byte \\
-\wf{Z21} Unit                     & \schema{Z21}  & --  & no content key (only Z1K1) --- one inhabitant, \wf{Z23} Nothing \emph{(editorial)} \\
-\wf{Z60} Natural language         & \schema{Z60}  & --  & open \wf{Z6} code (not enum-bounded) \\
-\wf{Z61} Programming language      & \schema{Z61}  & --  & open \wf{Z6} code (not enum-bounded) \\
-\wf{Z6040} Wikidata statement rank & \schema{Z6040} & -- & \fnmodel{Enumerations}{enumeration} (Z6040K1 $\in$ \{Z6041,Z6042,Z6043\}) \\
-\wf{Z5} Error                     & \schema{Z5}   & --  & modelled as \texttt{Option.none} \\
-\end{tabular}
-\end{center}
-
-The remaining built-ins are, \emph{by usage} (not a schema-level distinction), structural ---
-\wf{Z1}--\wf{Z4} object/type, \wf{Z7}/\wf{Z8} call/function, \wf{Z14}--\wf{Z18}
-implementation/arguments, \wf{Z22} result, \wf{Z39}, \ldots --- or labels (\wf{Z11}/\wf{Z12}).
-
-\textbf{Numeric types} (community; absent from \texttt{CANONICAL/}; linked to their live \wf{Z4}
-definitions):
-
-\begin{center}
-\begin{tabular}{lll}
-\textbf{Type} & \textbf{In \texttt{Val}} & \textbf{Structure (per live \wf{Z4})} \\
-\hline
-\wf{Z13518} Natural number  & \texttt{Val.nat} & \wf{Z13518}K1, a \wf{Z6} digit-string \emph{(editorial:} the Z6 string is arbitrary-precision, so $\mathbb{N}$ is faithful with no overflow gap\emph{)} \\
-\wf{Z16683} Integer         & --               & \\
-\wf{Z19677} Rational number & \texttt{Val.rat} & \wf{Z19677}K1 sign / K2 numerator / K3 denominator \\
-\wf{Z20838} float64         & --               & \wf{Z4} record: K1 sign / K2 exponent / K3 significand / K4 special value \emph{(editorial: modelled by Lean \texttt{Float}, IEEE-754 binary64)} \\
-\end{tabular}
-\end{center}
-
-To add one to \texttt{Val} is a new constructor: a string function (already in the spec corpus,
-e.g.\ \wf{Z35278}, modelled with native Lean \texttt{String}) would want \wf{Z6}; a higher-order
-function would want a \wf{Z9} / function value (\divergence{D17}).
