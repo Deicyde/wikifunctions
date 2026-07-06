@@ -14,9 +14,12 @@ permissions:
   pages: write
   id-token: write
 
+# Serialize Pages deployments but never cancel one mid-flight: a cancelled deploy
+# can leave the github-pages environment in a pending state, which is a common cause
+# of the transient "Deployment failed, try again later." error on the next run.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -53,7 +56,21 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      # Whichever attempt actually deployed provides the URL.
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy_retry.outputs.page_url }}
     steps:
-      - id: deployment
+      # actions/deploy-pages intermittently returns "Deployment failed, try again
+      # later." even when the artifact is fine. Attempt once without failing the job,
+      # then retry after a short wait; only a double failure surfaces as a red run
+      # (and an email). This makes the common single flake self-heal.
+      - name: Deploy to GitHub Pages
+        id: deploy
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Wait out the transient Pages error
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 20
+      - name: Deploy to GitHub Pages (retry)
+        id: deploy_retry
+        if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4
