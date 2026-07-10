@@ -10,11 +10,13 @@ language-specific execution, and mathematical meaning.
 
 The target example is \wf{Z12427}/is prime.  Mathlib's \texttt{Nat.Prime} carries
 \texttt{@[wikidata Q49008]}, and the bridge records the Q49008--\wf{Z12427} join.  The formal
-target is
-\[
-  \texttt{Z12427\_spec}(n)=\texttt{true}\quad\Longleftrightarrow\quad
-  \texttt{Nat.Prime}(n).
-\]
+target is the following kernel-checked Lean declaration:
+\begin{verbatim}
+@[simp]
+theorem z12427_spec_eq_true_iff (value : Nat) :
+    Z12427_spec value = true ↔ Nat.Prime value := by
+  simp [Z12427_spec]
+\end{verbatim}
 This is a specification theorem, not a proof about the deployed foreign-language bodies.  A
 separate, signature-linked conformance judgment states what such a proof must establish.
 
