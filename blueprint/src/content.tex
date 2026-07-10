@@ -1,144 +1,357 @@
-% Content of the Wikifunctions x Lean blueprint (ground-up model).
-% Each node names the Lean declaration it formalizes (\lean, and a \leansrc link to
-% the exact source line) and the Function-model section / schema it is derived from.
-% Nodes are green in the dependency graph when formalized; edges are \uses deps.
+% Wikifunctions x Lean formalization blueprint.
+% Green nodes name declarations checked by Lean; prose-only boundaries are intentionally not green.
 
-\chapter*{Overview}
+\chapter*{Scope and verification claim}
 
-This blueprint documents a machine-checked Lean~4 model of the Wikifunctions / WikiLambda object
-system, built \emph{ground-up from the spec}. Its organising principle: \textbf{every value is a
-\fnmodel{Z1/ZObjects}{\textsf{Z1}}/ZObject}, and the type layer is \emph{generated} from the authoritative schemata rather
-than hand-written. The model lives under \repo{Wikifunctions/Model}{\texttt{Wikifunctions/Model/}}
-and is Mathlib-free.
+This project provides an auditable Lean core in which a pinned Wikifunctions implementation can
+be stated and proved correct against a Mathlib specification.  It separates wire ingestion,
+semantic values, schema validation, implementation elaboration, inner evaluation, public results,
+language-specific execution, and mathematical meaning.
 
-Only the \wf{Z1}/ZObject inductive is hand-written --- the uniform \emph{normal form} the
-evaluator consumes, in which the \wf{Z6}/\wf{Z9} terminals and \wf{Z881} lists are all shapes of
-\texttt{node} (Chapter~\ref{ch:zobject}). The compact \emph{canonical form} we store and transmit
-is a separate type, related to normal form by total conversions (Chapter~\ref{ch:canonical}).
-Every other built-in type is emitted by a compiler from its definition (Chapter~\ref{ch:types}).
-Each node links to its exact Lean source and to the Function-model section or function-schemata
-file it is derived from; no structural or behavioural claim is made without that spec citation.
+The target example is \wf{Z12427}/is prime.  Mathlib's \texttt{Nat.Prime} carries
+\texttt{@[wikidata Q49008]}, and the bridge records the Q49008--\wf{Z12427} join.  The formal
+target is
+\[
+  \texttt{Z12427\_spec}(n)=\texttt{true}\quad\Longleftrightarrow\quad
+  \texttt{Nat.Prime}(n).
+\]
+This is a specification theorem, not a proof about the deployed foreign-language bodies.  A
+separate, signature-linked conformance judgment states what such a proof must establish.
 
-\paragraph{The authorities cited.} The prose
-\href{https://www.wikifunctions.org/wiki/Wikifunctions:Function_model}{Function model} (concepts),
-the machine-enforced
-\href{https://gitlab.wikimedia.org/repos/abstract-wiki/wikifunctions/function-schemata}{function-schemata}
-(structural validity), and the live ZObjects (via the \texttt{wikilambda\_fetch} API, the ground
-truth for community types). Where the model makes a simplification the spec leaves open, it is
-marked \emph{(editorial)}.
+The strongest implementation theorem is for the transcribed \wf{Z13702} composition of
+\wf{Z13701}/are coprime.  Its Z14 object is elaborated and evaluated, then proved equal to
+\texttt{Nat.Coprime}, relative to explicit contracts for its strict leaf functions.
 
-\chapter{Z1/ZObjects --- the hand-written substrate}\label{ch:zobject}
+\chapter{Semantic values and wire forms}\label{ch:model}
 
-The whole model rests on one inductive type and a few accessors, transcribed directly from the
-spec's definition of a ZObject and its normal form.
+\begin{definition}[Validated identifiers and keys]\label{def:identifiers}
+  \lean{Wikifunctions.Model.ZID, Wikifunctions.Model.Key}\leanok
+  ZIDs and keys carry proofs of their lexical grammar.  Keys include local keys, global keys, and
+  the bare-ZID dynamic-key alternative admitted by the pinned \schema{Z7} schema.  Untrusted
+  strings enter through partial parsers.
+  \leansrc{Wikifunctions/Model/ZObject.lean}{48}
+\end{definition}
 
-\begin{definition}[ZObject]\label{def:zobject}
+\begin{definition}[Lossless raw syntax]\label{def:raw}
+  \lean{Wikifunctions.Model.Raw}\leanok
+  Raw syntax preserves strings, number spelling, booleans, null, arrays, object order, and
+  duplicate keys.  It is the untrusted JSON-shaped boundary and the payload language of quotes.
+  \leansrc{Wikifunctions/Model/ZObject.lean}{152}
+\end{definition}
+
+\begin{definition}[Semantic ZObject syntax]\label{def:zobject}
+  \uses{def:identifiers, def:raw}
   \lean{Wikifunctions.Model.ZObject}\leanok
-  Derived verbatim from \fnmodel{Z1/ZObjects}{Function model \S~Z1/ZObjects} (``A ZObject consists
-  of a list of Key/value pairs'') in the spec's \fnmodel{Normal_form}{\S~Normal form} --- the
-  \emph{uniform} representation the evaluator consumes (``Normal forms \ldots ensure that the input
-  for evaluation is always uniform \ldots and requires a minimal amount of special cases''). A
-  \texttt{ZObject} is a raw \texttt{str} leaf or a \texttt{node} --- an ordered list of key/value
-  pairs. Two constructors; every type (\wf{Z6}, \wf{Z9}, \wf{Z4}, \wf{Z8}, \wf{Z7}, and \wf{Z881}
-  lists) is a shape of \texttt{node}. Source: \leansrc{Wikifunctions/Model/ZObject.lean}{35}.
+  Strings, references, ordinary typed objects, typed lists, and quotes are distinct constructors.
+  A quote retains raw syntax rather than requiring its payload to be a valid semantic ZObject.
+  \leansrc{Wikifunctions/Model/ZObject.lean}{167}
 \end{definition}
 
-\begin{definition}[Accessors and terminals]\label{def:accessors}
+\begin{definition}[Structural validity and quote opacity]\label{def:structural}
   \uses{def:zobject}
-  \lean{Wikifunctions.Model.ZObject.typeId?}\leanok
-  Key lookup (\texttt{get?}); the type ZID (\texttt{typeId?}; §Z1/ZObjects: ``every ZObject must
-  have a key Z1K1/type''); and the terminals as smart constructors --- \texttt{string}~\(= \{\)
-  \wf{Z1}K1{:}\wf{Z6}, \wf{Z6}K1{:}\(s\}\) and \texttt{reference}~\(= \{\)\wf{Z1}K1{:}\wf{Z9},
-  \wf{Z9}K1{:}\(zid\}\), with recognizers \texttt{stringValue?}/\texttt{referenceId?}. The raw
-  \texttt{str} leaf is only ever a terminal payload or a type-tag name.
-  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{103}.
+  \lean{Wikifunctions.Model.ZObject.StructurallyValid,
+    Wikifunctions.Model.ZObject.structurallyValid_quote}\leanok
+  Ordinary objects require unique keys, no second data-level \texttt{Z1K1}, and recursively valid
+  semantic children.  Z99 is a hard validation boundary: its raw payload is not traversed.
+  \leansrc{Wikifunctions/Model/ZObject.lean}{214}
 \end{definition}
 
-\begin{definition}[Z881 typed lists]\label{def:lists}
-  \uses{def:accessors}
-  \lean{Wikifunctions.Model.ZObject.typedList}\leanok
-  Per \fnmodel{Normal_form}{§Normal form}, ``all Lists are represented as ZObjects, not as
-  arrays'': a \wf{Z881}/Typed list is a cons-list of nodes --- head \texttt{K1}, tail \texttt{K2},
-  and a \wf{Z7} call to \wf{Z881} for the element type --- so it needs no special constructor, only
-  the smart builder \texttt{typedList}. (The compact array rendering lives in
-  Chapter~\ref{ch:canonical}.) Source: \leansrc{Wikifunctions/Model/ZObject.lean}{148}.
+\begin{definition}[Canonical and normal rendering]\label{def:serialization}
+  \uses{def:zobject}
+  \lean{Wikifunctions.Model.Canonical, Wikifunctions.Model.canonicalize,
+    Wikifunctions.Model.ZObject.toNormal}\leanok
+  Semantic canonical form retains the string/reference distinction.  Normal form expands
+  terminals and \wf{Z881} lists.  Both renderers reproduce a quoted raw payload exactly.
+  \leansrc{Wikifunctions/Model/Serialization.lean}{18}
 \end{definition}
 
-\begin{lemma}[Faithful to the spec's number 2]\label{lem:nattwo}
-  \uses{def:accessors}
-  \lean{Wikifunctions.Model.ZObject.natTwo}\leanok
-  \texttt{natTwo} reproduces the \fnmodel{Normal_form}{§Normal-form} example \emph{definitionally}
-  (\texttt{rfl}): the number 2 is \texttt{\{Z1K1:\{Z1K1:Z9,\,Z9K1:Z10\},
-  Z10K1:\{Z1K1:Z6,\,Z6K1:"2"\}\}}. The load-bearing faithfulness check for the substrate.
-  Source: \leansrc{Wikifunctions/Model/ZObject.lean}{155}.
+\begin{lemma}[Semantic conversion inverses]\label{lem:semantic-inverses}
+  \uses{def:serialization}
+  \lean{Wikifunctions.Model.normalize_canonicalize,
+    Wikifunctions.Model.canonicalize_normalize}\leanok
+  Canonicalization and normalization are structural inverses.  A ZID-shaped Z6 string is never
+  reinterpreted as a Z9 reference inside the semantic layer.
+  \leansrc{Wikifunctions/Model/Serialization.lean}{68}
 \end{lemma}
 
-\begin{definition}[Well-formedness]\label{def:wf}
+\begin{definition}[Exact renderer-image decoding]\label{def:wire-safe}
+  \uses{def:structural, def:serialization}
+  \lean{Wikifunctions.Model.decodeNormal, Wikifunctions.Model.decodeCanonical,
+    Wikifunctions.Model.WireSafe}\leanok
+  These strict decoders characterize the exact field order and shapes emitted by the renderers.
+  \texttt{WireSafe} states the constructor-disjointness needed because the permissive semantic
+  inductive can express ordinary objects that collide with reserved wire encodings.
+  \leansrc{Wikifunctions/Model/Decode.lean}{205}
+\end{definition}
+
+\begin{lemma}[Renderer round trips]\label{lem:wire-roundtrip}
+  \uses{def:wire-safe}
+  \lean{Wikifunctions.Model.decodeNormal_toNormal_of_wireSafe,
+    Wikifunctions.Model.decodeCanonical_canonicalize_toRaw_of_wireSafe}\leanok
+  Both exact decoders are proved left inverses on their explicit serialization domain.
+  \leansrc{Wikifunctions/Model/Decode.lean}{610}
+\end{lemma}
+
+\begin{definition}[Order-independent JSON ingestion]\label{def:ingest}
+  \uses{def:raw, def:structural}
+  \lean{Wikifunctions.Model.ingestNormal, Wikifunctions.Model.ingestCanonical,
+    Wikifunctions.Model.sortRawFields}\leanok
+  External ingestion rejects duplicate keys, looks members up by name, and sorts ordinary data
+  fields deterministically.  Reordered \texttt{Z1K1}, terminal, and \wf{Z881} fields are accepted;
+  a recognized Z99 payload is returned without descent.
+  \leansrc{Wikifunctions/Model/Ingest.lean}{45}
+\end{definition}
+
+\begin{lemma}[Malformed quotes are preserved]\label{lem:quote-preserved}
+  \uses{def:ingest}
+  \lean{Wikifunctions.Model.ingestNormal_malformed_quote_preserved,
+    Wikifunctions.Model.ingestCanonical_malformed_quote_preserved,
+    Wikifunctions.Model.ingestNormal_reordered_typed_list,
+    Wikifunctions.Model.ingestNormal_literal_identity_list}\leanok
+  Kernel-checked examples preserve a raw object containing duplicate invalid keys, a noncanonical
+  number, and null inside Z99, while also accepting reordered typed lists and the pinned recursive
+  literal Z4/Z8 list-identity forms.
+  \leansrc{Wikifunctions/Model/Ingest.lean}{230}
+\end{lemma}
+
+\chapter{Executable schema model}\label{ch:schema}
+
+\begin{definition}[Schema intermediate representation]\label{def:schema-ir}
+  \uses{def:structural}
+  \lean{Wikifunctions.Model.Schema.T, Wikifunctions.Model.Schema.T.accepts,
+    Wikifunctions.Model.Schema.Checked}\leanok
+  The schema IR has refined strings/references, lists, required and optional fields, exclusive
+  groups, explicit extra-key policies, unions, and recursive resolvers.  \texttt{Checked} pairs a
+  schema with the exact executable fuel bound used at a typed boundary.
+  \leansrc{Wikifunctions/Model/Schema.lean}{169}
+\end{definition}
+
+\begin{definition}[Recursive resolver validation]\label{def:resolver-schema}
+  \uses{def:schema-ir}
+  \lean{Wikifunctions.Model.Schema.T.resolverAcceptsAux,
+    Wikifunctions.Model.Schema.Core.resolverSchema}\leanok
+  Z9 references, Z7 calls, and Z18 argument references are checked recursively.  Empty reserved
+  forms are rejected and nested callees consume schema fuel.
+  \leansrc{Wikifunctions/Model/Schema.lean}{218}
+\end{definition}
+
+\begin{definition}[Pinned core schemas]\label{def:core-schemas}
+  \uses{def:resolver-schema}
+  \lean{Wikifunctions.Model.Schema.Core.z7LiteralSchema,
+    Wikifunctions.Model.Schema.Core.z14LiteralSchema,
+    Wikifunctions.Model.Schema.Core.z16LiteralSchema,
+    Wikifunctions.Model.Schema.Core.z22LiteralSchema,
+    Wikifunctions.Model.Schema.Core.z40LiteralSchema,
+    Wikifunctions.Model.Schema.Core.z13518Schema}\leanok
+  These are the pinned schema fragments used by the executable core, including dynamic Z7 keys,
+  the exclusive Z14 body, persistent builtin ZIDs, public Z22 results, full Z40 values, and the
+  live Z13518 decimal representation.  They are not a claim to contain every live Z4 validator.
+  \leansrc{Wikifunctions/Model/Schema.lean}{371}
+\end{definition}
+
+\begin{lemma}[Schema edge cases are enforced]\label{lem:schema-rejections}
+  \uses{def:core-schemas}
+  \lean{Wikifunctions.Model.Schema.Core.z14_multiple_bodies_rejected,
+    Wikifunctions.Model.Schema.Core.empty_z7_resolver_rejected,
+    Wikifunctions.Model.Schema.Core.z7_bare_zid_argument_valid,
+    Wikifunctions.Model.Schema.Core.z14_builtin_valid}\leanok
+  Multiple implementation bodies and empty resolver shells are rejected; bare-ZID dynamic
+  argument keys and validated builtin ZIDs are represented explicitly.
+  \leansrc{Wikifunctions/Model/Schema.lean}{618}
+\end{lemma}
+
+\chapter{Composition semantics}\label{ch:semantics}
+
+\begin{definition}[Z7/Z18 expression language]\label{def:expr}
   \uses{def:zobject}
-  \lean{Wikifunctions.Model.ZObject.WellFormed}\leanok
-  The inductive is deliberately permissive --- as the dynamically-typed deployed system is, where
-  validators can be skipped --- so validity is a \emph{separate, decidable} predicate \texttt{wf}:
-  a raw \texttt{str} is not a standalone ZObject, and a \texttt{node} is well-formed iff it is a
-  \wf{Z6}/\wf{Z9} terminal shape or a general object with a \wf{Z1}K1 key, no duplicate keys
-  (§Z1/ZObjects: ``every Key can only appear once''), and every value well-formed. \texttt{natTwo},
-  the terminals, and a \texttt{typedList} check well-formed; a bare leaf and a \wf{Z1}K1-less node
-  are rejected. Source: \leansrc{Wikifunctions/Model/ZObject.lean}{201}.
+  \lean{Wikifunctions.Semantics.Expr}\leanok
+  Expressions have literals, keyed Z18 argument references, raw opaque quotes, and Z7 calls whose
+  callee is itself an expression.  IDs remain open data rather than a closed Lean enumeration.
+  \leansrc{Wikifunctions/Semantics/Eval.lean}{36}
 \end{definition}
 
-\chapter{Canonical form and the conversions}\label{ch:canonical}
-
-Normal form is uniform but verbose. ``In order to make ZObjects more readable and more compact, we
-usually store and transmit them in the so-called canonical form'' (\fnmodel{Canonical_form}{§Canonical
-form}). Canonical form is a \emph{separate} type, related to normal form by total conversions.
-
-\begin{definition}[Canonical form]\label{def:canonical}
-  \lean{Wikifunctions.Model.Canonical}\leanok
-  A \texttt{Canonical} value is compact JSON: a \texttt{str}, an \texttt{arr}, or an \texttt{obj}.
-  Canonical form applies exactly three collapses (\fnmodel{Canonical_form}{§Canonical form}): a
-  \wf{Z6}/String to a bare string, a \wf{Z9}/Reference to a bare ZID, and a \wf{Z881}/Typed list to
-  a \emph{Benjamin array} --- a JSON array whose \textbf{first element is the element type} and
-  whose rest are the items (\texttt{["Z6","a","b"]}). Source:
-  \leansrc{Wikifunctions/Model/Canonical.lean}{26}.
+\begin{definition}[Expression decoding]\label{def:expr-decode}
+  \uses{def:expr, def:resolver-schema}
+  \lean{Wikifunctions.Semantics.decode,
+    Wikifunctions.Semantics.decode_z18_argument_of_parse,
+    Wikifunctions.Semantics.decode_duplicate_z7_callee_rejected}\leanok
+  The fuelled semantic boundary decodes expression-valued callees and arguments, validates global
+  Z18 keys, keeps quotes opaque, and rejects malformed reserved forms.
+  \leansrc{Wikifunctions/Semantics/Decode.lean}{60}
 \end{definition}
 
-\begin{definition}[canonicalize / normalize]\label{def:conversions}
-  \uses{def:canonical, def:lists}
-  \lean{Wikifunctions.Model.Canonical.canonicalize}\leanok
-  \texttt{canonicalize} (normal~\(\to\)~canonical) collapses the terminals and flattens each
-  \wf{Z881} cons-list into its Benjamin array; \texttt{normalize} (canonical~\(\to\)~normal)
-  inverts this, reading a bare ZID-shaped string as a \wf{Z9} reference and a Benjamin array as a
-  cons-list. Machine-checked both ways, including on the spec's number~2 and on
-  \texttt{["Z6","a","b"]}, with round-trips \texttt{normalize~\(\circ\)~canonicalize} and
-  \texttt{canonicalize~\(\circ\)~normalize}. \emph{(editorial)} \texttt{canonicalize} recognises a
-  list by the cons key-order our builders emit. Source:
-  \leansrc{Wikifunctions/Model/Canonical.lean}{91}.
+\begin{definition}[Typed signatures and registry]\label{def:registry}
+  \uses{def:expr, def:schema-ir}
+  \lean{Wikifunctions.Semantics.FunctionSignature,
+    Wikifunctions.Semantics.FunctionSignature.acceptsArguments_pair_swap,
+    Wikifunctions.Semantics.FunctionDefinition,
+    Wikifunctions.Semantics.Registry,
+    Wikifunctions.Semantics.SelectionPolicy}\leanok
+  A Z8 projection stores ordered Z17-style key/schema declarations and an output schema.
+  Argument values are schema-checked by key independently of JSON member order.  Registries attach
+  signatures to implementation lists; a deterministic policy makes selection visible and
+  auditable.
+  \leansrc{Wikifunctions/Semantics/Eval.lean}{173}
 \end{definition}
 
-\chapter{The generated type layer}\label{ch:types}
+\begin{lemma}[Registry validity survives lookup]\label{lem:registry-valid}
+  \uses{def:registry}
+  \lean{Wikifunctions.Semantics.Registry.lookup_wellFormed}\leanok
+  A well-formed registry has unique function IDs and well-formed typed definitions.  Successful
+  lookup preserves definition validity.
+  \leansrc{Wikifunctions/Semantics/Eval.lean}{285}
+\end{lemma}
 
-Above the substrate, the built-in types are not written by hand --- they are compiled from their
-definitions, so the type layer is faithful to the schemata by construction.
-
-\begin{definition}[The type compiler]\label{def:codegen}
-  \uses{def:zobject}
-  \repo{codegen/gen\_type.py}{\texttt{codegen/gen\_type.py}} reads each type's authoritative
-  definition --- the function-schemata \schema{Z4}-style YAML for built-ins, or the live \wf{Z4}
-  (\texttt{wikilambda\_fetch}) for community types, both reduced to \(\{\)type ZID, ordered data
-  keys\(\}\) --- and emits, on the \texttt{ZObject} substrate, a smart constructor, per-key
-  accessors, an \texttt{isZxx} recognizer, and a \texttt{by decide} self-check that the constructor
-  and recognizer agree. The schema \emph{is} the spec, so generation removes per-type
-  interpretation entirely.
+\begin{definition}[Persistent values and reference resolution]\label{def:references}
+  \uses{def:expr}
+  \lean{Wikifunctions.Semantics.PersistentStore,
+    Wikifunctions.Semantics.ReferenceResolver,
+    Wikifunctions.Semantics.eval_reference_chain}\leanok
+  A finite store contains decoded Z2K2 expressions; the open resolver interface can additionally
+  report lookup failures.  Reference chains consume one evaluation-fuel step per replacement.
+  Literal references in function-head position remain identities for registry dispatch.
+  \leansrc{Wikifunctions/Semantics/Eval.lean}{380}
 \end{definition}
 
-\begin{definition}[The built-in inventory]\label{def:types}
-  \uses{def:codegen}
-  All \textbf{29 built-in types} --- every function-schemata \texttt{CANONICAL} type except the
-  hand-written \wf{Z1}/\wf{Z6}/\wf{Z9} --- are generated into
-  \repo{Wikifunctions/Model/Types}{\texttt{Wikifunctions/Model/Types/}} (\wf{Z2}, \wf{Z3}, \wf{Z4},
-  \wf{Z5}, \wf{Z7}, \wf{Z8}, \wf{Z14}, \wf{Z16}, \wf{Z17}, \wf{Z18}, \wf{Z22}, \wf{Z40}, \ldots).
-  All from the schemata YAML except \wf{Z23}/Nothing (live \wf{Z4} fallback); all build green with
-  their self-checks. The community numeric type \wf{Z19677}/Rational is generated the same way from
-  its live \wf{Z4}. \emph{(editorial)} The current \texttt{isZxx} checks key \emph{presence}; the
-  schema's enum/type constraints (e.g.\ \wf{Z40}K1 \(\in \{\)\wf{Z41}, \wf{Z42}\(\}\)) are the next
-  increment.
+\begin{definition}[Fuelled inner evaluator]\label{def:eval}
+  \uses{def:registry, def:references}
+  \lean{Wikifunctions.Semantics.Runtime, Wikifunctions.Semantics.eval,
+    Wikifunctions.Semantics.Outcome}\leanok
+  Inner evaluation returns a semantic value, typed error, or out-of-fuel.  Reference resolution,
+  strict denotations, and foreign Python/JavaScript execution are explicit runtime fields.
+  \leansrc{Wikifunctions/Semantics/Eval.lean}{547}
 \end{definition}
+
+\begin{lemma}[Composition is call-by-name]\label{lem:laziness}
+  \uses{def:eval}
+  \lean{Wikifunctions.Semantics.eval_call_constant_composition,
+    Wikifunctions.Semantics.eval_call_lazyIf_true}\leanok
+  Substitution does not force arguments.  A constant body is independent of unused arguments, and
+  the lazy conditional evaluates only its selected branch.
+  \leansrc{Wikifunctions/Semantics/Eval.lean}{709}
+\end{lemma}
+
+\begin{definition}[Checked Z14/Z16 elaboration]\label{def:elaboration}
+  \uses{def:expr-decode, def:core-schemas, def:registry}
+  \lean{Wikifunctions.Semantics.elaboratePersistentImplementation,
+    Wikifunctions.Semantics.Expr.directReferences,
+    Wikifunctions.Semantics.decodeForeignCode}\leanok
+  An exact, order-independent semantic decoder connects the common pre-resolved persistent-ID
+  subset of Z14 objects to evaluator implementations.  It enforces one alternative, checks every
+  direct ID against a pinned persistent catalog, decodes Z16 source, and routes composition bodies
+  through the shared expression decoder.
+  \leansrc{Wikifunctions/Semantics/Elaborate.lean}{145}
+\end{definition}
+
+\begin{lemma}[Elaboration rejects malformed implementations]\label{lem:elaboration-rejects}
+  \uses{def:elaboration}
+  \lean{Wikifunctions.Semantics.elaboratePersistentImplementation_builtin,
+    Wikifunctions.Semantics.elaborateImplementation_multiple_alternatives_rejected,
+    Wikifunctions.Semantics.elaborateImplementation_invalid_builtin_rejected}\leanok
+  Constructor correctness and duplicate, multi-alternative, malformed-code, and invalid-builtin
+  rejection laws are kernel checked.
+  \leansrc{Wikifunctions/Semantics/Elaborate.lean}{150}
+\end{lemma}
+
+\begin{definition}[Public Z22 result layer]\label{def:result}
+  \uses{def:eval, def:core-schemas}
+  \lean{Wikifunctions.Semantics.ResultProtocol,
+    Wikifunctions.Semantics.toEvaluationResult,
+    Wikifunctions.Semantics.execute}\leanok
+  The inner evaluator is wrapped in the public Z22 protocol.  Runtime values are structurally
+  checked; failures put Z24/Void in Z22K1 and caller-supplied, schema-checked failure metadata in
+  Z22K2.  A concrete typed Z5 metadata map remains an explicit integration obligation.
+  \leansrc{Wikifunctions/Semantics/Result.lean}{27}
+\end{definition}
+
+\begin{lemma}[Public results satisfy Z22]\label{lem:result-valid}
+  \uses{def:result}
+  \lean{Wikifunctions.Semantics.evaluationResult_value_schemaValid,
+    Wikifunctions.Semantics.evaluationResult_failure_schemaValid}\leanok
+  Successfully wrapped values and encoded failures satisfy the pinned literal Z22 schema.
+  \leansrc{Wikifunctions/Semantics/Result.lean}{80}
+\end{lemma}
+
+\chapter{WikiLean bridge and contracts}\label{ch:bridge}
+
+\begin{definition}[Schema-carrying codecs]\label{def:codec}
+  \uses{def:zobject, def:schema-ir}
+  \lean{Wikifunctions.Bridge.Codec,
+    Wikifunctions.Bridge.Natural.codec,
+    Wikifunctions.Bridge.Boolean.codec}\leanok
+  A codec packages an executable schema, proof that every encoding satisfies it, a total encoder,
+  partial decoder, round trip, and canonical-image theorem.  The exact deployed Z13518 and full
+  Z40 shapes are used; bare Z41/Z42 identities are not themselves Boolean values.
+  \leansrc{Wikifunctions/Bridge/Codec.lean}{16}
+\end{definition}
+
+\begin{theorem}[The Z12427 Mathlib oracle]\label{thm:z12427-spec}
+  \uses{def:codec}
+  \lean{Wikifunctions.Bridge.z12427_spec_eq_true_iff,
+    Wikifunctions.Bridge.z12427_oracle_encode_eq_true_iff}\leanok
+  The Boolean oracle and its semantic-object form return true exactly when Mathlib's
+  \texttt{Nat.Prime} holds.
+  \leansrc{Wikifunctions/Bridge/Z12427.lean}{23}
+\end{theorem}
+
+\begin{definition}[Metadata is not correctness]\label{def:metadata}
+  \uses{thm:z12427-spec}
+  \lean{Wikifunctions.Bridge.primeConceptMetadata,
+    Wikifunctions.Bridge.CrossRef.declarationsForWikidata,
+    Wikifunctions.Bridge.CrossRef.assertMathlibTag}\leanok
+  Revision-pinned metadata records the Q49008--Z12427--\texttt{Nat.Prime} join.  A build-time
+  environment check keeps the Mathlib side live, but discovery of a tagged declaration does not
+  prove executable conformance.
+  \leansrc{Wikifunctions/Bridge/Z12427.lean}{68}
+\end{definition}
+
+\begin{definition}[Reusable typed implementation contract]\label{def:contract}
+  \uses{def:eval, def:codec, def:registry}
+  \lean{Wikifunctions.Verification.Contract,
+    Wikifunctions.Verification.ConformsWithFuel,
+    Wikifunctions.Verification.Conforms}\leanok
+  A contract fixes a function identity, typed signature, schema-valid input encoding, schema-linked
+  output codec, and Lean specification.  Conformance also proves that the runtime registry entry
+  has exactly this signature; fuel may depend on the input.
+  \leansrc{Wikifunctions/Verification/Contract.lean}{28}
+\end{definition}
+
+\begin{theorem}[Conditional Z12427 implementation theorem]\label{thm:z12427-contract}
+  \uses{thm:z12427-spec, def:contract}
+  \lean{Wikifunctions.Verification.Z12427.eval_eq_true_iff_of_conformsWithFuel}\leanok
+  Any signature-matched runtime proved to conform to Z12427 returns encoded true if and only if
+  \texttt{Nat.Prime} holds.  No current Python or JavaScript body is marked green.
+  \leansrc{Wikifunctions/Verification/Z12427.lean}{43}
+\end{theorem}
+
+\begin{theorem}[Pinned Z13702 composition, relative to leaf contracts]\label{thm:z13702}
+  \uses{def:contract, def:elaboration, lem:laziness}
+  \lean{Wikifunctions.Verification.Z13701.elaborate_liveImplementation,
+    Wikifunctions.Verification.Z13701.eval_contract,
+    Wikifunctions.Verification.Z13701.conforms,
+    Wikifunctions.Verification.Z13701.eval_eq_true_iff}\leanok
+  The generic elaborator recovers the evaluator AST from the pinned Z14 object.  Under explicit
+  denotations \texttt{Z13612}~$\mapsto$~\texttt{Nat.gcd} and
+  \texttt{Z13522}~$\mapsto$~natural equality, evaluation agrees with
+  \texttt{Nat.Coprime} for every pair of naturals.
+  \leansrc{Wikifunctions/Verification/Z13701.lean}{134}
+\end{theorem}
+
+\chapter*{Open proof obligations}
+
+Green nodes state the implemented core precisely.  The following production-wide claims remain
+outside it:
+\begin{itemize}
+  \item conformance of Z12427's deployed Python and JavaScript bodies;
+  \item conformance of the deployed strict implementations used as leaf contracts;
+  \item a complete live Z4/Z8/Z17 registry and type-directed resolution inside arbitrary object
+        fields, including the special Z2-as-argument rule;
+  \item runtime-wide schema enforcement for arbitrary nested composition/lazy calls (strict and
+        foreign boundaries validate schemas; typed contracts prove their own encoded domain);
+  \item literal/transient Z8 identities and literal Z61 languages beyond the pre-resolved
+        persistent-ID elaboration subset;
+  \item a concrete revision-pinned metadata map containing typed Z5 errors; and
+  \item equivalence between this deterministic strategy and a selected production evaluation,
+        Python, or JavaScript semantics.
+\end{itemize}
+These are explicit interfaces or premises, not hidden assumptions of the green theorems.

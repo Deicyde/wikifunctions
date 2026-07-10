@@ -1,11 +1,12 @@
 name = "wikifunctions"
 defaultTargets = ["Wikifunctions"]
 
-# No dependencies: the ground-up model (ZObject + generated types) is Mathlib-free.
-# Mathlib will be re-added when the evaluator's proofs connect to Mathlib oracles.
+# Pin Mathlib so Wikidata cross-reference metadata and oracle theorems have a stable subject.
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4.git"
+rev = "a33a5ccd631025f4a7e4221935c87daafe7d53a0"
 
-# The ground-up model: the hand-written `Wikifunctions.Model.ZObject` substrate and
-# the generated `Wikifunctions.Model.Types.*` modules. Built via the glob.
 [[lean_lib]]
 name = "Wikifunctions"
-globs = ["Wikifunctions.+"]
+globs = ["Wikifunctions.*"]

@@ -1,82 +1,45 @@
-# Blueprint
+# Formalization blueprint
 
-A [leanblueprint](https://github.com/PatrickMassot/leanblueprint) for the
-Wikifunctions × Lean formalization: an interactive dependency graph in which every
-node is pinned to the Lean declaration it formalizes **and** the live WikiLambda
-object it models. It is the reviewable interface to the claim that this repo
-faithfully models deployed Wikifunctions; the prose analysis lives in
-[`../SPEC_AUDIT.md`](../SPEC_AUDIT.md) and the per-declaration citation map in
-[`../BLUEPRINT.md`](../BLUEPRINT.md).
+This directory builds the interactive dependency graph for the Wikifunctions Lean model. A green
+node names one or more declarations that Lean resolves from the repository root module; prose-only
+claims and open obligations are intentionally not marked formalized.
 
-![dependency graph](dep_graph.png)
+The blueprint is published at <https://deicyde.github.io/wikifunctions/>.
 
-Each node carries a **Lean** link (to the exact source line on GitHub) and, where
-it models a specific object, a **WikiLambda** link to
-[wikifunctions.org](https://www.wikifunctions.org). Green = statement and proof
-complete in Lean. Divergences from the live system are flagged inline (D1–D18).
+## Local checks
 
-## Structure
-
-```
-blueprint/
-├── src/
-│   ├── content.tex        ← the blueprint itself (4 chapters = the 4 spec layers)
-│   ├── web.tex            ← plasTeX master (interactive HTML + dep graph)
-│   ├── print.tex          ← xelatex master (PDF)
-│   ├── blueprint.sty      ← local print-only macro stubs (web uses the plasTeX plugin)
-│   ├── plastex.cfg, latexmkrc, extra_styles.css
-│   └── macros/            ← common/web/print; defines \wf and \leansrc
-├── check_decls.py         ← verifies every \lean{} names a real Lean declaration
-└── dep_graph.{png,svg}    ← rendered static preview of the graph
-```
-
-## Build
-
-One-time tooling (kept out of git in `.blueprint-venv/`):
+From the repository root:
 
 ```bash
-python3 -m venv .blueprint-venv && . .blueprint-venv/bin/activate
-pip install leanblueprint
+lake build
+python3 blueprint/check_decls.py
 ```
 
-Then:
+`check_decls.py` extracts every `\lean{Fully.Qualified.Name}` from `src/content.tex`, generates a
+temporary Lean module importing `Wikifunctions`, and compile-checks the names. It does not use the
+old short-name regular-expression heuristic.
+
+To build the web version:
 
 ```bash
-# interactive web version + dependency graph  → blueprint/web/
-cd blueprint/src && plastex -c plastex.cfg web.tex
-
-# printable PDF                               → blueprint/print/print.pdf
-cd blueprint/src && latexmk -xelatex -output-directory=../print print.tex
+python3 -m venv .blueprint-venv
+.blueprint-venv/bin/pip install -r blueprint/requirements.txt
+cd blueprint/src
+../../.blueprint-venv/bin/plastex -c plastex.cfg web.tex
+cd ../..
+python3 blueprint/make_find.py blueprint/web
 ```
 
-## Review it locally
+The generated site is written to `blueprint/web/` and is not tracked. GitHub Actions repeats the
+declaration check before publishing the site.
 
-```bash
-python3 -m http.server 8137 --directory blueprint/web
-# open http://localhost:8137/  (graph at /dep_graph_document.html)
-```
+## Source files
 
-## Check the Lean names
+- `src/content.tex` is the formalization narrative and dependency graph.
+- `src/web.tex` and `src/print.tex` are the HTML and PDF entry points.
+- `check_decls.py` asks Lean to resolve every documented declaration.
+- `make_find.py` generates links from blueprint nodes to repository source lines.
 
-```bash
-python3 blueprint/check_decls.py     # exits non-zero if any \lean{} name is unknown
-```
-
-## Declaration links (`\lean{}` → GitHub source)
-
-leanblueprint renders every `\lean{Decl}` as a link `{dochome}/find/#doc/Decl`.
-This project does **not** host doc-gen4 API docs, so `\dochome` (in `src/web.tex`)
-points at our own static resolver instead:
-
-```bash
-python3 blueprint/make_find.py blueprint/web   # writes blueprint/web/find/index.html
-```
-
-`make_find.py` reads the `\lean{}`/`\leansrc{}` pairs out of `content.tex` and
-emits a `find/` page that redirects each declaration to its exact Lean source
-line on GitHub — so both the prose blueprint and the dependency-graph nodes link
-straight to the code. The CI workflow runs this right after the plasTeX build.
-
-The web build is also deployed to GitHub Pages by
-`.github/workflows/blueprint.yml` on every push to `main` (enable Pages →
-"GitHub Actions" in repo settings).
+The schema/function-model links in the prose identify external authorities. Revision-sensitive
+live data is also pinned in Lean declarations or adjacent module documentation; an external link
+alone is never treated as a proof.

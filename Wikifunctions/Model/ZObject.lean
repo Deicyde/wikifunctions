@@ -1,213 +1,260 @@
 /-!
-# `Z1`/ZObjects — the ground of the Wikifunctions model (normal form)
+# Semantic ZObjects
 
-Every Wikifunctions value is a `ZObject`, modelled here in the spec's **normal form**
-(§Normal form). Normal form is *uniform*: every ZObject is a node of key/value pairs, and the
-only leaf is a raw string — the value inside a `Z6`/String or `Z9`/Reference terminal, or a type
-tag. The spec singles this form out as the evaluator's input:
+This module separates validated Wikifunctions values from their JSON encodings.  In particular,
+strings and references are different constructors even though canonical JSON renders both with
+JSON strings.  This prevents the canonical/normal ambiguity from entering the semantic model.
 
-> "For the processing of ZObjects by the evaluator, all ZObjects are turned into the normal form
->  described above. ... Normal forms are used as inputs for the evaluation engine. They ensure
->  that the input for evaluation is always uniform and easy to process, and that it requires a
->  minimal amount of special cases."
+The constructors are the semantic cases used by the evaluator:
 
-A key consequence, stated by the spec, is that **"all Lists are represented as ZObjects, not as
-arrays"**: a `Z881`/Typed list is a cons-list of nodes (head `K1`, tail `K2`), so it needs no
-special constructor here — it is just a shape of `node`. The compact **canonical form** (bare
-terminals + Benjamin arrays), which is what we store and transmit, is a *separate* type with
-`canonicalize` / `normalize` conversions; see `Wikifunctions/Model/Canonical.lean`.
+* `string` and `reference` are the two terminal values;
+* `object` stores its type separately from its data fields;
+* `list` is a typed list, whose normal encoding is the `Z881` cons representation;
+* `quote` retains lossless raw syntax and makes it opaque to decoding, validation, and resolution.
 
-Grounded in the Function model, §Z1/ZObjects and §Normal form
-<https://www.wikifunctions.org/wiki/Wikifunctions:Function_model#Normal_form>. This module is
-Mathlib-free.
+Identifiers and keys carry proofs of the grammar enforced by function-schemata.  Raw syntax is
+co-located here only because Z99 quotation must be able to retain malformed, unevaluated input.
 -/
 
 namespace Wikifunctions.Model
 
-/-- A key on a ZObject (§Z3/Keys): `K` + a positive natural, optionally ZID-prefixed. -/
-abbrev Key := String
+/-! ## Validated identifiers -/
 
-/-- `Z1`/Object — the universal type. **Every Wikifunctions value is a `ZObject`.**
+/-- Every character in `cs` is an ASCII digit. -/
+def allDigits : List Char → Bool
+  | [] => true
+  | c :: cs => c.isDigit && allDigits cs
 
-    Normal form: a `ZObject` is either a raw `str` leaf (only ever the payload of a `Z6`/`Z9`
-    terminal or a type tag) or a `node` — an ordered list of key/value pairs. Two constructors;
-    every "type" (`Z6`, `Z9`, `Z4`, `Z8`, `Z7`, `Z881` lists, …) is a shape of `node`. -/
-inductive ZObject where
-  /-- A raw string leaf: the value of a `Z6K1`/`Z9K1` payload or a type-tag name. -/
-  | str  : String → ZObject
-  /-- A ZObject as an ordered list of key/value pairs (§Z1/ZObjects). -/
-  | node : List (Key × ZObject) → ZObject
+/-- A nonempty decimal numeral with no leading zero. -/
+def positiveDigits : List Char → Bool
+  | [] => false
+  | c :: cs => c.isDigit && c != '0' && allDigits cs
+
+/-- The part of a global key following its first ZID digit. -/
+def globalKeyTail : List Char → Bool
+  | [] => false
+  | 'K' :: digits => positiveDigits digits
+  | c :: cs => c.isDigit && globalKeyTail cs
+
+/-- Whether `s` is a valid ZID: `Z` followed by a positive decimal numeral. -/
+def isZID (s : String) : Bool :=
+  match s.toList with
+  | 'Z' :: digits => positiveDigits digits
+  | _ => false
+
+/-- Whether `s` is a Wikifunctions object key.
+
+Besides local (`K1`) and global (`Z7K1`) keys, Z7's pinned normal schema permits a bare ZID
+(`Z123`) as a dynamic argument key. -/
+def isKey (s : String) : Bool :=
+  isZID s ||
+    match s.toList with
+    | 'K' :: digits => positiveDigits digits
+    | 'Z' :: digit :: rest => digit.isDigit && digit != '0' && globalKeyTail rest
+    | _ => false
+
+/-- A validated Wikifunctions object identifier. -/
+structure ZID where
+  raw : String
+  valid : isZID raw = true
+deriving Repr, DecidableEq
+
+namespace ZID
+
+/-- Validate an untrusted string as a ZID. -/
+def parse (s : String) : Option ZID :=
+  if h : isZID s = true then some ⟨s, h⟩ else none
+
+@[simp]
+theorem parse_raw (zid : ZID) : parse zid.raw = some zid := by
+  cases zid with
+  | mk raw valid => simp [parse, valid]
+
+end ZID
+
+/-- A validated Wikifunctions key, including Z7's bare-ZID dynamic-key case. -/
+structure Key where
+  raw : String
+  valid : isKey raw = true
+deriving Repr, DecidableEq
+
+namespace Key
+
+/-- Validate an untrusted string as a key. -/
+def parse (s : String) : Option Key :=
+  if h : isKey s = true then some ⟨s, h⟩ else none
+
+@[simp]
+theorem parse_raw (key : Key) : parse key.raw = some key := by
+  cases key with
+  | mk raw valid => simp [parse, valid]
+
+end Key
+
+/-! ## Reserved identifiers and keys
+
+These constants are the small kernel vocabulary needed by the representation, evaluator, and
+WikiLean bridge.  Application-specific ZIDs remain data and are validated with `ZID.parse`.
+-/
+
+namespace IDs
+
+def z1 : ZID := ⟨"Z1", by decide⟩
+def z4 : ZID := ⟨"Z4", by decide⟩
+def z6 : ZID := ⟨"Z6", by decide⟩
+def z7 : ZID := ⟨"Z7", by decide⟩
+def z8 : ZID := ⟨"Z8", by decide⟩
+def z9 : ZID := ⟨"Z9", by decide⟩
+def z14 : ZID := ⟨"Z14", by decide⟩
+def z16 : ZID := ⟨"Z16", by decide⟩
+def z18 : ZID := ⟨"Z18", by decide⟩
+def z22 : ZID := ⟨"Z22", by decide⟩
+def z24 : ZID := ⟨"Z24", by decide⟩
+def z40 : ZID := ⟨"Z40", by decide⟩
+def z41 : ZID := ⟨"Z41", by decide⟩
+def z42 : ZID := ⟨"Z42", by decide⟩
+def z99 : ZID := ⟨"Z99", by decide⟩
+def z881 : ZID := ⟨"Z881", by decide⟩
+def z12427 : ZID := ⟨"Z12427", by decide⟩
+def z13518 : ZID := ⟨"Z13518", by decide⟩
+
+end IDs
+
+namespace Keys
+
+def k1 : Key := ⟨"K1", by decide⟩
+def k2 : Key := ⟨"K2", by decide⟩
+def z1k1 : Key := ⟨"Z1K1", by decide⟩
+def z4k1 : Key := ⟨"Z4K1", by decide⟩
+def z6k1 : Key := ⟨"Z6K1", by decide⟩
+def z7k1 : Key := ⟨"Z7K1", by decide⟩
+def z8k5 : Key := ⟨"Z8K5", by decide⟩
+def z9k1 : Key := ⟨"Z9K1", by decide⟩
+def z14k1 : Key := ⟨"Z14K1", by decide⟩
+def z14k2 : Key := ⟨"Z14K2", by decide⟩
+def z14k3 : Key := ⟨"Z14K3", by decide⟩
+def z14k4 : Key := ⟨"Z14K4", by decide⟩
+def z16k1 : Key := ⟨"Z16K1", by decide⟩
+def z16k2 : Key := ⟨"Z16K2", by decide⟩
+def z18k1 : Key := ⟨"Z18K1", by decide⟩
+def z22k1 : Key := ⟨"Z22K1", by decide⟩
+def z22k2 : Key := ⟨"Z22K2", by decide⟩
+def z40k1 : Key := ⟨"Z40K1", by decide⟩
+def z99k1 : Key := ⟨"Z99K1", by decide⟩
+def z881k1 : Key := ⟨"Z881K1", by decide⟩
+def z12427k1 : Key := ⟨"Z12427K1", by decide⟩
+def z13518k1 : Key := ⟨"Z13518K1", by decide⟩
+
+end Keys
+
+/-! ## Lossless raw syntax -/
+
+/-- Lossless JSON-shaped syntax at the trust boundary.
+
+Object order and duplicate keys are preserved.  Numbers retain their source spelling, avoiding
+an accidental normalization before validation.  Wikifunctions serializers emit only strings,
+arrays, and objects, but quotes can faithfully carry any JSON value. -/
+inductive Raw where
+  | string : String → Raw
+  | number : String → Raw
+  | boolean : Bool → Raw
+  | null : Raw
+  | array : List Raw → Raw
+  | object : List (String × Raw) → Raw
 deriving Repr
 
-/- Decidable equality, hand-written: the built-in `deriving DecidableEq` handler does not support
-   this nested inductive (the recursive occurrence sits under `List (Key × ·)`). -/
-mutual
-  protected def ZObject.decEq : (a b : ZObject) → Decidable (a = b)
-    | .str s, .str t =>
-        if h : s = t then isTrue (by rw [h]) else isFalse (fun he => by injection he with h'; exact h h')
-    | .node x, .node y =>
-        match ZObject.decEqEntries x y with
-        | isTrue h => isTrue (by rw [h])
-        | isFalse h => isFalse (fun he => by injection he with h'; exact h h')
-    | .str _,  .node _ => isFalse (fun he => ZObject.noConfusion he)
-    | .node _, .str _  => isFalse (fun he => ZObject.noConfusion he)
-  protected def ZObject.decEqEntries : (x y : List (Key × ZObject)) → Decidable (x = y)
-    | [], [] => isTrue rfl
-    | [], _ :: _ => isFalse (fun he => by simp at he)
-    | _ :: _, [] => isFalse (fun he => by simp at he)
-    | (k, v) :: x, (k', v') :: y =>
-        if hk : k = k' then
-          match ZObject.decEq v v' with
-          | isTrue hv =>
-            match ZObject.decEqEntries x y with
-            | isTrue ht => isTrue (by rw [hk, hv, ht])
-            | isFalse ht => isFalse (fun he => by injection he with _ ht'; exact ht ht')
-          | isFalse hv => isFalse (fun he => by injection he with hh _; injection hh with _ hv'; exact hv hv')
-        else isFalse (fun he => by injection he with hh _; injection hh with hk' _; exact hk hk')
-end
+/-! ## Semantic values -/
 
-instance : DecidableEq ZObject := ZObject.decEq
+/-- A semantic Wikifunctions value.
+
+`object type fields` stores `Z1K1` separately, so duplicate or missing type keys are impossible
+in this layer.  The normal serializer reintroduces `Z1K1` on the wire. -/
+inductive ZObject where
+  | string : String → ZObject
+  | reference : ZID → ZObject
+  | object : ZObject → List (Key × ZObject) → ZObject
+  | list : ZObject → List ZObject → ZObject
+  | quote : Raw → ZObject
+deriving Repr
 
 namespace ZObject
 
-/-! ### Accessors -/
+/-- The explicit ZObject type of a value. -/
+def typeOf : ZObject → ZObject
+  | .string _ => .reference IDs.z6
+  | .reference _ => .reference IDs.z9
+  | .object type _ => type
+  | .list elementType _ =>
+      .object (.reference IDs.z7)
+        [(Keys.z7k1, .reference IDs.z881), (Keys.z881k1, elementType)]
+  | .quote _ => .reference IDs.z99
 
-/-- The key/value pairs of a ZObject (empty for a `str` leaf). -/
-def entries : ZObject → List (Key × ZObject)
-  | node kvs => kvs
-  | _        => []
+/-- The data fields of an ordinary object. -/
+def fields : ZObject → List (Key × ZObject)
+  | .object _ fields => fields
+  | _ => []
 
-/-- The keys present on a ZObject, in order. -/
-def keys (z : ZObject) : List Key := z.entries.map (·.1)
+/-- Look up an ordinary object's data field. -/
+def get? (z : ZObject) (key : Key) : Option ZObject :=
+  (z.fields.find? (·.1 == key)).map (·.2)
 
-/-- Key lookup: the value at key `k`, or `none`. First occurrence wins. -/
-def get? (z : ZObject) (k : Key) : Option ZObject :=
-  (z.entries.find? (·.1 == k)).map (·.2)
+/-- The string payload of a terminal value. -/
+def stringValue? : ZObject → Option String
+  | .string value => some value
+  | _ => none
 
-/-- The `Z1K1`/type value of a node. -/
-def type? (z : ZObject) : Option ZObject := z.get? "Z1K1"
+/-- The referenced ZID of a terminal value. -/
+def referenceId? : ZObject → Option ZID
+  | .reference zid => some zid
+  | _ => none
 
-/-- Is `s` a ZID — `Z` followed by one or more digits (§Z9/Reference)? -/
-def isZID (s : String) : Bool :=
-  match s.toList with
-  | 'Z' :: d :: rest => (d :: rest).all Char.isDigit
-  | _ => false
-
-/-! ### Terminals as smart constructors (normal form)
-
-A `Z6`/String and a `Z9`/Reference are two-key nodes whose payloads bottom out in raw `str`
-leaves. Their own `Z1K1` tag is the bare string `"Z6"`/`"Z9"` (the base case that stops the
-type-tag regress); every *other* object tags its `Z1K1` with a `reference` node. -/
-
-/-- `Z6`/String: `{Z1K1: "Z6", Z6K1: s}`. -/
-def string (s : String) : ZObject := node [("Z1K1", str "Z6"), ("Z6K1", str s)]
-
-/-- `Z9`/Reference: `{Z1K1: "Z9", Z9K1: zid}`. -/
-def reference (zid : String) : ZObject := node [("Z1K1", str "Z9"), ("Z9K1", str zid)]
-
-/-- The `Z6`/String value, if `z` is one. -/
-def stringValue? (z : ZObject) : Option String :=
-  match z.get? "Z1K1", z.get? "Z6K1" with
-  | some (str "Z6"), some (str s) => some s
-  | _, _ => none
-
-/-- The referenced ZID, if `z` is a `Z9`/Reference. -/
-def referenceId? (z : ZObject) : Option String :=
-  match z.get? "Z1K1", z.get? "Z9K1" with
-  | some (str "Z9"), some (str zid) => some zid
-  | _, _ => none
-
-def isString    (z : ZObject) : Bool := z.stringValue?.isSome
-def isReference (z : ZObject) : Bool := z.referenceId?.isSome
-
-/-- The ZID naming a ZObject's type. A terminal tags `Z1K1` with a bare string (`"Z6"`/`"Z9"`);
-    every other object tags it with a `reference` node, whose ZID is the type. -/
-def typeId? (z : ZObject) : Option String :=
-  match z.get? "Z1K1" with
-  | some (str s)  => some s                 -- terminal base case: the bare type name
-  | some tagNode  => tagNode.referenceId?   -- object: Z1K1 is a Z9 reference to the type
-  | none          => none
-
-/-! ### `Z881`/Typed lists — cons-lists of nodes (§Normal form: "Lists are ZObjects, not arrays")
-
-A typed list's type is a `Z7` call to `Z881` with the element type; each cons cell carries head
-`K1` and tail `K2`; the empty list is the type alone. -/
-
-/-- The list type: `{Z1K1: Z7, Z7K1: Z881, Z881K1: elemType}` (fully-expanded normal form). -/
-def listType (elemType : ZObject) : ZObject :=
-  node [("Z1K1", reference "Z7"), ("Z7K1", reference "Z881"), ("Z881K1", elemType)]
-
-/-- The empty `Z881` list of `elemType`. -/
-def emptyList (elemType : ZObject) : ZObject := node [("Z1K1", listType elemType)]
-
-/-- One cons cell: `{Z1K1: listType, K1: head, K2: tail}`. -/
-def cons (elemType head tail : ZObject) : ZObject :=
-  node [("Z1K1", listType elemType), ("K1", head), ("K2", tail)]
-
-/-- A `Z881` typed list of `elemType` from a Lean list, built as a cons-list of nodes. -/
-def typedList (elemType : ZObject) : List ZObject → ZObject
-  | []      => emptyList elemType
-  | x :: xs => cons elemType x (typedList elemType xs)
-
-/-! ### Faithfulness check: the spec's number 2, in normal form -/
-
-/-- The natural number 2 in normal form: `{Z1K1: <ref Z10>, Z10K1: <str "2">}`. -/
-def natTwo : ZObject := node [("Z1K1", reference "Z10"), ("Z10K1", string "2")]
-
-/-- `natTwo` reproduces the spec's §Normal-form example *definitionally*. -/
-example : natTwo =
-    node [("Z1K1",  node [("Z1K1", str "Z9"), ("Z9K1", str "Z10")]),
-          ("Z10K1", node [("Z1K1", str "Z6"), ("Z6K1", str "2")])] := rfl
-
-example : natTwo.typeId?              = some "Z10" := rfl   -- its type is Z10
-example : (string "hi").stringValue?  = some "hi"  := rfl
-example : (reference "Z40").referenceId? = some "Z40" := rfl
-example : (reference "Z40").typeId?   = some "Z9"  := rfl   -- a reference is itself a Z9
-
-/-! ### Well-formedness
-
-Permissive type, decidable validity predicate. A bare `str` is not a standalone ZObject. A node
-is well-formed if it is a `Z6`/`Z9` terminal shape (payload a raw string) or a general object:
-a `Z1K1` key, no duplicate keys, and every value well-formed. -/
-
+/-- Boolean key uniqueness, used by structural validation and schemas. -/
 def keysNoDup : List Key → Bool
   | [] => true
-  | k :: ks => !ks.contains k && keysNoDup ks
-
-/-- The `Z6`/String terminal shape: exactly `Z1K1 = "Z6"` and `Z6K1` a raw string. -/
-def isZ6 (kvs : List (Key × ZObject)) : Bool :=
-  kvs.length == 2 &&
-  (match (node kvs).get? "Z1K1" with | some (str "Z6") => true | _ => false) &&
-  (match (node kvs).get? "Z6K1" with | some (str _)    => true | _ => false)
-
-/-- The `Z9`/Reference terminal shape: exactly `Z1K1 = "Z9"` and `Z9K1` a raw string. -/
-def isZ9 (kvs : List (Key × ZObject)) : Bool :=
-  kvs.length == 2 &&
-  (match (node kvs).get? "Z1K1" with | some (str "Z9") => true | _ => false) &&
-  (match (node kvs).get? "Z9K1" with | some (str _)    => true | _ => false)
+  | key :: keys => !keys.contains key && keysNoDup keys
 
 mutual
-  def wf : ZObject → Bool
-    | str _ => false
-    | node kvs =>
-        isZ6 kvs || isZ9 kvs ||
-        ((kvs.any (·.1 == "Z1K1")) && keysNoDup (kvs.map (·.1)) && wfEntries kvs)
-  def wfEntries : List (Key × ZObject) → Bool
+  /-- Representation-level validity, before resolving types or running Z4 validators. -/
+  def structurallyValid : ZObject → Bool
+    | .string _ => true
+    | .reference _ => true
+    | .object type fields =>
+        structurallyValid type &&
+          keysNoDup (fields.map (·.1)) &&
+          !(fields.map (·.1)).contains Keys.z1k1 &&
+          structurallyValidFields fields
+    | .list elementType items =>
+        structurallyValid elementType && structurallyValidList items
+    | .quote _ => true
+  /-- Structural validity of object fields. -/
+  def structurallyValidFields : List (Key × ZObject) → Bool
     | [] => true
-    | (_, v) :: rest => wf v && wfEntries rest
+    | (_, value) :: fields => structurallyValid value && structurallyValidFields fields
+  /-- Structural validity of homogeneous list contents. -/
+  def structurallyValidList : List ZObject → Bool
+    | [] => true
+    | value :: values => structurallyValid value && structurallyValidList values
 end
 
-/-- A ZObject is well-formed. -/
-def WellFormed (z : ZObject) : Prop := wf z = true
+/-- Proposition-valued structural validity.  Type validity is a separate registry judgement. -/
+def StructurallyValid (z : ZObject) : Prop := z.structurallyValid = true
 
-instance (z : ZObject) : Decidable z.WellFormed := by unfold WellFormed; infer_instance
+instance (z : ZObject) : Decidable z.StructurallyValid := by
+  unfold StructurallyValid
+  infer_instance
 
-example : wf natTwo = true := by decide
-example : wf (string "anything") = true := by decide
-example : wf (reference "Z13701") = true := by decide
-example : wf (str "bare") = false := by decide                            -- a bare string is not a ZObject
-example : wf (typedList (reference "Z6") [string "a", string "b"]) = true := by decide  -- a list is well-formed
-example : wf (node [("Z10K1", string "2")]) = false := by decide          -- no Z1K1
+@[simp]
+theorem structurallyValid_string (value : String) :
+    structurallyValid (.string value) = true := rfl
+
+@[simp]
+theorem structurallyValid_reference (zid : ZID) :
+    structurallyValid (.reference zid) = true := rfl
+
+/-- Quotation is a validation boundary: its payload may be schema-invalid and is not traversed. -/
+@[simp]
+theorem structurallyValid_quote (payload : Raw) :
+    structurallyValid (.quote payload) = true := rfl
 
 end ZObject
 end Wikifunctions.Model

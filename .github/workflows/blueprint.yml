@@ -1,8 +1,7 @@
 name: Blueprint
 
-# Builds the interactive HTML blueprint (plasTeX only — no Lean/LaTeX needed for
-# the web version) and deploys it to GitHub Pages. Enable Pages -> "GitHub Actions"
-# in the repository settings for the deploy step to publish.
+# Checks every documented Lean declaration against the compiled root module, builds the
+# interactive HTML blueprint, and deploys it to GitHub Pages.
 
 on:
   push:
@@ -26,6 +25,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Restore Lean and dependency caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.elan
+            .lake/packages
+          key: lean-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
+      - name: Install elan
+        run: |
+          if [ ! -x "$HOME/.elan/bin/elan" ]; then
+            curl -sSfL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch pinned dependencies and Mathlib cache
+        run: |
+          lake update
+          lake exe cache get
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
@@ -39,7 +55,9 @@ jobs:
             texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
       - name: Install blueprint tooling (pinned to the known-good set)
         run: pip install -r blueprint/requirements.txt
-      - name: Verify blueprint declaration names
+      - name: Build the Lean library
+        run: lake build
+      - name: Compile-check blueprint declaration names
         run: python3 blueprint/check_decls.py
       - name: Build web blueprint
         run: cd blueprint/src && plastex -c plastex.cfg web.tex

@@ -1,48 +1,69 @@
 #!/usr/bin/env python3
-"""Verify every \\lean{...} declaration named in the blueprint exists in the Lean sources.
+"""Compile-check every ``\\lean{...}`` declaration in the blueprint.
 
-Heuristic but strict: for each declaration named in a \\lean{} macro in
-blueprint/src/content.tex, strip the namespace and confirm the base identifier is
-introduced by a def/theorem/lemma/abbrev/inductive/instance in some .lean file.
-Exits non-zero (listing every miss) if any name is unaccounted for.
+The old checker compared only the final identifier component against a regular-expression index,
+so a misspelled namespace could still pass.  This checker generates a temporary Lean module that
+imports the repository root and asks Lean to resolve every fully qualified name.
 
-Run from the repo root:  python3 blueprint/check_decls.py
+Run from any directory: ``python3 blueprint/check_decls.py``.
 """
-import re, sys, pathlib
 
-root = pathlib.Path(__file__).resolve().parent.parent
-content = (root / "blueprint/src/content.tex").read_text()
+from __future__ import annotations
 
-# collect declaration names from \lean{a, b, c}
-names = []
-for m in re.finditer(r"\\lean\{([^}]*)\}", content):
-    names += [n.strip() for n in m.group(1).split(",") if n.strip()]
+import pathlib
+import re
+import subprocess
+import sys
+import tempfile
 
-# index every declared identifier across the Lean sources
-decl_re = re.compile(
-    r"^\s*(?:noncomputable\s+|protected\s+|private\s+)*"
-    r"(?:def|theorem|lemma|abbrev|inductive|structure|instance)\s+([A-Za-z_][A-Za-z0-9_'.?!]*)"
-)
-declared = set()
-for lean in root.rglob("*.lean"):
-    if ".lake" in lean.parts or ".blueprint-venv" in lean.parts:
-        continue
-    for line in lean.read_text().splitlines():
-        mm = decl_re.match(line)
-        if mm:
-            base = mm.group(1).split(".")[-1]   # strip any dotted prefix
-            declared.add(base)
 
-missing = []
-for full in names:
-    base = full.split(".")[-1]
-    if base not in declared:
-        missing.append(full)
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+CONTENT = ROOT / "blueprint" / "src" / "content.tex"
+LEAN_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_'.?!]*(?:\.[A-Za-z_][A-Za-z0-9_'.?!]*)*$")
 
-print(f"blueprint \\lean names: {len(names)}  |  distinct declared idents: {len(declared)}")
-if missing:
-    print(f"MISSING ({len(missing)}):")
-    for m in missing:
-        print(f"  - {m}")
-    sys.exit(1)
-print("OK: every \\lean declaration in the blueprint resolves to a Lean source declaration.")
+
+def declaration_names() -> list[str]:
+    content = CONTENT.read_text(encoding="utf-8")
+    names: list[str] = []
+    for match in re.finditer(r"\\lean\{([^}]*)\}", content):
+        names.extend(name.strip() for name in match.group(1).split(",") if name.strip())
+    invalid = [name for name in names if not LEAN_NAME.fullmatch(name)]
+    if invalid:
+        raise ValueError(f"invalid Lean declaration syntax in blueprint: {invalid}")
+    return list(dict.fromkeys(names))
+
+
+def main() -> int:
+    names = declaration_names()
+    if not names:
+        print("blueprint declaration check: no \\lean names found", file=sys.stderr)
+        return 1
+
+    source = "import Wikifunctions\n\n" + "\n".join(f"#check {name}" for name in names) + "\n"
+    path: pathlib.Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", suffix=".lean", prefix="wikifunctions-blueprint-",
+            delete=False
+        ) as handle:
+            handle.write(source)
+            path = pathlib.Path(handle.name)
+        result = subprocess.run(
+            ["lake", "env", "lean", str(path)], cwd=ROOT, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False
+        )
+    finally:
+        if path is not None:
+            path.unlink(missing_ok=True)
+
+    if result.returncode != 0:
+        print(result.stdout, file=sys.stderr)
+        print(f"blueprint declaration check failed ({len(names)} names)", file=sys.stderr)
+        return result.returncode
+
+    print(f"OK: Lean resolved all {len(names)} blueprint declarations")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

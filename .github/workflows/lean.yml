@@ -1,13 +1,10 @@
-name: Lean build
-
-# Builds the ground-up model (Wikifunctions/Model/): the hand-written ZObject
-# substrate and the generated Model.Types.* modules. Dependency-free (no Mathlib),
-# so this is just elan + `lake build`.
+name: Lean build and audit
 
 on:
   push:
     branches: [main]
     paths:
+      - 'Wikifunctions.lean'
       - 'Wikifunctions/**'
       - 'lakefile.toml'
       - 'lean-toolchain'
@@ -15,6 +12,7 @@ on:
       - '.github/workflows/lean.yml'
   pull_request:
     paths:
+      - 'Wikifunctions.lean'
       - 'Wikifunctions/**'
       - 'lakefile.toml'
       - 'lean-toolchain'
@@ -31,17 +29,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install elan (Lean toolchain manager)
-        run: |
-          curl -sSfL https://elan.lean-lang.org/elan-init.sh \
-            | sh -s -- -y --default-toolchain none
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-
-      - name: Cache Lean toolchain
+      - name: Restore Lean and dependency caches
         uses: actions/cache@v4
         with:
-          path: ~/.elan
-          key: elan-${{ hashFiles('lean-toolchain') }}
+          path: |
+            ~/.elan
+            .lake/packages
+          key: lean-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
 
-      - name: Build the model
+      - name: Install elan
+        run: |
+          if [ ! -x "$HOME/.elan/bin/elan" ]; then
+            curl -sSfL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch pinned dependencies and Mathlib cache
+        run: |
+          lake update
+          lake exe cache get
+
+      - name: Reject proof placeholders and untrusted proof evaluation
+        run: |
+          if grep -RInE --include='*.lean' \
+            '(^|[^A-Za-z_])(sorry|admit|native_decide)([^A-Za-z_]|$)|^[[:space:]]*axiom[[:space:]]' \
+            Wikifunctions Wikifunctions.lean; then
+            exit 1
+          fi
+
+      - name: Build every module
         run: lake build
+
+      - name: Print public theorem axiom dependencies
+        run: lake env lean Wikifunctions/Audit.lean
