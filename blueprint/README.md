@@ -28,10 +28,12 @@ cd blueprint/src
 ../../.blueprint-venv/bin/plastex -c plastex.cfg web.tex
 cd ../..
 python3 blueprint/make_find.py blueprint/web
+python3 blueprint/make_legacy_redirects.py blueprint/web
 ```
 
 The generated site is written to `blueprint/web/` and is not tracked. GitHub Actions repeats the
-declaration check before publishing the site.
+declaration check before publishing the site. `make_legacy_redirects.py` preserves chapter URLs
+published by earlier blueprint versions, including `ch-zobject.html`.
 
 ## Source files
 
@@ -39,6 +41,7 @@ declaration check before publishing the site.
 - `src/web.tex` and `src/print.tex` are the HTML and PDF entry points.
 - `check_decls.py` asks Lean to resolve every documented declaration.
 - `make_find.py` generates links from blueprint nodes to repository source lines.
+- `make_legacy_redirects.py` generates compatibility pages for retired chapter routes.
 
 The schema/function-model links in the prose identify external authorities. Revision-sensitive
 live data is also pinned in Lean declarations or adjacent module documentation; an external link

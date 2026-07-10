@@ -65,6 +65,8 @@ jobs:
         # \lean{Decl} links point at {dochome}/find/#doc/Decl; this writes the
         # static resolver that redirects each declaration to its GitHub source.
         run: python3 blueprint/make_find.py blueprint/web
+      - name: Preserve retired blueprint chapter URLs
+        run: python3 blueprint/make_legacy_redirects.py blueprint/web
       - uses: actions/upload-pages-artifact@v3
         with:
           path: blueprint/web
